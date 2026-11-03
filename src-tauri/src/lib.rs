@@ -38,8 +38,8 @@ async fn set_mode(ac: State<'_, Ac>, mode: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn set_target_temperature(ac: State<'_, Ac>, value: f64) -> Result<(), String> {
-    // A faixa e o passo de 0,5 vêm do profile do aparelho.
-    let value = (value.clamp(18.0, 30.0) * 2.0).round() / 2.0;
+    // Faixa do profile do aparelho; o app usa graus inteiros (o ar aceita 0,5).
+    let value = value.clamp(18.0, 30.0).round();
     ac.client()?.control(json!({ "temperature": { "targetTemperature": value } })).await
 }
 

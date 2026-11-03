@@ -108,7 +108,9 @@ export default function App() {
 
   const changeTemperature = (delta: number) => {
     if (!status?.targetTemperature) return;
-    const value = Math.min(status.maxTemperature, Math.max(status.minTemperature, status.targetTemperature + delta));
+    // Arredonda para graus inteiros caso o alvo tenha sido ajustado em 0,5 pelo app da LG.
+    const next = Math.round(status.targetTemperature + delta);
+    const value = Math.min(status.maxTemperature, Math.max(status.minTemperature, next));
     setStatus({ ...status, targetTemperature: value });
     // Agrupa cliques seguidos em um único comando.
     window.clearTimeout(tempTimer.current);
@@ -197,11 +199,11 @@ export default function App() {
               <div>
                 <span className="label">{t("target")}</span>
                 <div className="target">
-                  <button onClick={() => changeTemperature(-0.5)} disabled={!status?.power}>
+                  <button onClick={() => changeTemperature(-1)} disabled={!status?.power}>
                     −
                   </button>
                   <span className="big">{status?.targetTemperature ?? "–"}°</span>
-                  <button onClick={() => changeTemperature(0.5)} disabled={!status?.power}>
+                  <button onClick={() => changeTemperature(1)} disabled={!status?.power}>
                     +
                   </button>
                 </div>

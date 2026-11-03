@@ -5,7 +5,7 @@ Widget para Windows que controla um ar-condicionado LG pela [ThinQ Connect API](
 Pela janela dá para:
 
 - ligar e desligar
-- mudar a temperatura alvo (passos de 0,5 °C)
+- mudar a temperatura alvo (passos de 1 °C)
 - escolher o modo (frio, secar, ventilar), a velocidade do vento e a oscilação
 - programar o timer para ligar ou desligar
 - ver se o ar está gelando (temperatura ambiente → alvo)
