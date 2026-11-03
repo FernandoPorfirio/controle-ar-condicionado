@@ -29,7 +29,7 @@ Stack: [Tauri 2](https://tauri.app) (Rust) + React + TypeScript + pnpm.
    | Como você usa o app | Onde fica o `.env` |
    |---|---|
    | Rodando pelo código (`pnpm tauri dev`) | Na raiz do repositório, ao lado do `.env.example` |
-   | Instalado pelo instalador | Na pasta de configuração do app: `%APPDATA%\com.fernandoporfirio.arcondicionado\` |
+   | Instalado pelo instalador | Na pasta de configuração do app: `%APPDATA%\app.controle-ar-condicionado\` |
 
    O caminho é o mesmo para todo mundo. O nome da pasta vem do `identifier` em [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json); se você fizer um fork e mudar o identifier, o caminho muda junto. A pasta de configuração é criada na primeira execução. Para abri-la, use o menu da bandeja (clique direito no ícone → **Abrir pasta do .env**) ou cole o caminho acima na barra de endereço do Explorer. Depois de colocar o `.env`, feche o app pela bandeja (**Sair**) e abra de novo.
 
