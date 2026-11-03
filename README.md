@@ -16,7 +16,7 @@ A interface tem PT-BR e inglês, e tema claro, escuro ou do sistema.
 
 ## Instalação
 
-Baixe o instalador (`…-setup.exe`) da última versão em [Releases](../../releases), instale e siga a [Configuração](#configuração).
+Baixe o instalador (`…-setup.exe`) da última versão em [Releases](../../releases), instale e abra. O próprio app pede o token da LG (veja [Configuração](#configuração)).
 
 O instalador não tem assinatura digital, então o Windows pode mostrar "O Windows protegeu o computador". Clique em **Mais informações → Executar assim mesmo**.
 
@@ -24,25 +24,25 @@ Stack: [Tauri 2](https://tauri.app) (Rust) + React + TypeScript + pnpm.
 
 ## Configuração
 
-1. Gere um token pessoal (PAT) em https://connect-pat.lgthinq.com
-   - Abra em aba anônima e **escolha o país da sua conta LG antes de logar**. Com o país errado, toda chamada falha com `1309 Not allowed api call`.
-   - Entre com **e-mail e senha**, não pelo QR code / login social.
-   - Marque todas as permissões.
-2. Copie [`.env.example`](.env.example) para um arquivo chamado `.env` e preencha:
-   - `THINQ_PAT`: o token gerado acima
-   - `THINQ_COUNTRY`: o código do país da conta LG (ex.: `BR`, `US`, `PT`)
-   - `THINQ_CLIENT_ID`: qualquer UUID, fixo para a sua instalação (no PowerShell: `[guid]::NewGuid()`). Se ficar vazio, o app gera um novo a cada execução.
-   - `THINQ_DEVICE_ID` (opcional): só se a conta tiver mais de um ar-condicionado. Sem ele, o app controla o primeiro que encontrar. Os IDs aparecem no app em **⚙ → Aparelhos na conta**.
-3. Coloque o `.env` no lugar certo para o seu caso:
+Na primeira vez que abre, o app mostra a tela **Conectar à conta LG**:
 
-   | Como você usa o app | Onde fica o `.env` |
-   |---|---|
-   | Rodando pelo código (`pnpm tauri dev`) | Na raiz do repositório, ao lado do `.env.example` |
-   | Instalado pelo instalador | Na pasta de configuração do app: `%APPDATA%\app.controle-ar-condicionado\` |
+1. Clique no link para abrir https://connect-pat.lgthinq.com
+   - **Escolha o país da sua conta LG antes de entrar.** Se o site abrir em outro idioma, use uma aba anônima. Com o país errado, toda chamada falha com `1309 Not allowed api call`.
+   - Entre com **e-mail e senha**, não pelo QR code nem pelo login do Google/Apple.
+   - Crie um token marcando todas as permissões.
+2. Escolha o mesmo país no app, cole o token e clique em **Conectar**.
+3. Se a conta tiver mais de um ar-condicionado, escolha qual controlar.
 
-   O caminho é o mesmo para todo mundo. O nome da pasta vem do `identifier` em [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json); se você fizer um fork e mudar o identifier, o caminho muda junto. A pasta de configuração é criada na primeira execução. Para abri-la, use o menu da bandeja (clique direito no ícone → **Abrir pasta do .env**) ou cole o caminho acima na barra de endereço do Explorer. Depois de colocar o `.env`, feche o app pela bandeja (**Sair**) e abra de novo.
+O app testa o token com a LG antes de salvar. O token fica no **Gerenciador de Credenciais do Windows**; país e aparelho ficam em `%APPDATA%\app.controle-ar-condicionado\settings.json`. Para trocar o token, o país ou o aparelho, ou para desconectar, use **⚙ → Conta LG**.
 
-   Se o `.env` não for encontrado, a janela mostra no rodapé o caminho exato onde ele é esperado.
+### Configuração por `.env` (desenvolvimento)
+
+Quem roda pelo código pode usar um `.env` na raiz do repositório, que tem prioridade sobre a configuração do app. Copie [`.env.example`](.env.example) para `.env` e preencha:
+
+- `THINQ_PAT`: o token
+- `THINQ_COUNTRY`: o código do país da conta LG (ex.: `BR`, `US`, `PT`)
+- `THINQ_CLIENT_ID`: qualquer UUID fixo (no PowerShell: `[guid]::NewGuid()`)
+- `THINQ_DEVICE_ID` (opcional): qual ar controlar, se houver mais de um. Os IDs aparecem em **⚙ → Conta LG**.
 
 O `.env` está no `.gitignore`. Nunca o commite nem compartilhe: o token dá controle do seu ar-condicionado.
 
@@ -77,4 +77,4 @@ python scripts/thinq_probe.py
 
 ## Segurança
 
-O token só é lido pelo backend Rust. A interface web nunca o recebe. O app consulta o estado a cada 60 s, porque a LG bloqueia tokens que fazem chamadas demais.
+O token só é lido pelo backend Rust e fica guardado no Gerenciador de Credenciais do Windows. A interface web só o envia uma vez, na tela de configuração, e nunca o recebe de volta. O app consulta o estado a cada 60 s, porque a LG bloqueia tokens que fazem chamadas demais.

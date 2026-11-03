@@ -322,3 +322,60 @@ footer {
   color: var(--muted);
   word-break: break-all;
 }
+
+input[type="password"],
+input[type="text"] {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  user-select: text;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  padding: 8px;
+}
+
+button.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.small {
+  font-size: 11px;
+}
+
+.device-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.device-choices button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.settings .error {
+  margin: 0;
+}

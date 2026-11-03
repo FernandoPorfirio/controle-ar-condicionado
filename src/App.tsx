@@ -2,17 +2,41 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, type AcStatus, type DeviceSummary, type TimerKind } from "./api";
+import {
+  api,
+  NOT_CONFIGURED,
+  setupApi,
+  type AcStatus,
+  type DeviceSummary,
+  type SetupInfo,
+  type TimerKind,
+} from "./api";
 import { setLanguage } from "./i18n";
+import Setup from "./Setup";
 
 // A LG limita chamadas por token; 60 s é seguro para uso contínuo.
 const POLL_MS = 60_000;
-const REFRESH_AFTER_COMMAND_MS = 2_500;
+const REFRESH_AFTER_COMMAND_MS = 5_000;
+// A nuvem da LG pode levar um tempo para refletir um comando no estado. Até lá,
+// o valor enviado prevalece sobre o lido, para a interface não "voltar".
+const PENDING_MS = 90_000;
 const TEMPERATURE_DEBOUNCE_MS = 700;
 
 const TIMER_OPTIONS = [30, 60, 120, 180, 240, 360, 480];
 
 type Theme = "system" | "light" | "dark";
+type Pending = Map<string, { value: unknown; until: number }>;
+
+/** Aplica sobre o estado lido os comandos ainda não confirmados pela LG. */
+function withPending(fresh: AcStatus, pending: Pending): AcStatus {
+  const merged: Record<string, unknown> = { ...fresh };
+  const now = Date.now();
+  for (const [key, p] of pending) {
+    if (p.until < now || JSON.stringify(merged[key]) === JSON.stringify(p.value)) pending.delete(key);
+    else merged[key] = p.value;
+  }
+  return merged as unknown as AcStatus;
+}
 
 function readPref<T extends string>(key: string, fallback: T): T {
   try {
@@ -64,20 +88,30 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => readPref("theme", "system"));
   const [devices, setDevices] = useState<DeviceSummary[] | null>(null);
+  const [setup, setSetup] = useState<SetupInfo | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
   const tempTimer = useRef<number | undefined>(undefined);
   const refreshTimer = useRef<number | undefined>(undefined);
+  const pending = useRef<Pending>(new Map());
+
+  const markPending = (patch: Partial<AcStatus>) => {
+    for (const [key, value] of Object.entries(patch))
+      pending.current.set(key, { value, until: Date.now() + PENDING_MS });
+  };
 
   const refresh = useCallback(async () => {
     try {
-      setStatus(await api.getStatus());
+      setStatus(withPending(await api.getStatus(), pending.current));
       setError(null);
       setUpdatedAt(new Date());
     } catch (e) {
-      setError(String(e));
+      if (String(e) === NOT_CONFIGURED) setShowSetup(true);
+      else setError(String(e));
     }
   }, []);
 
   useEffect(() => {
+    setupApi.get().then(setSetup);
     refresh();
     const id = window.setInterval(refresh, POLL_MS);
     const unlisten = listen("status-changed", () => window.setTimeout(refresh, REFRESH_AFTER_COMMAND_MS));
@@ -97,11 +131,14 @@ export default function App() {
   const run = useCallback(
     async (patch: Partial<AcStatus>, command: () => Promise<void>) => {
       setStatus((s) => (s ? { ...s, ...patch } : s));
+      markPending(patch);
       setBusy(true);
       try {
         await command();
         setError(null);
       } catch (e) {
+        // O comando falhou: o estado lido volta a valer.
+        for (const key of Object.keys(patch)) pending.current.delete(key);
         setError(String(e));
       } finally {
         setBusy(false);
@@ -121,10 +158,11 @@ export default function App() {
     const value = Math.min(maxTemperature, Math.max(minTemperature, next));
     const mode = status.mode;
     setStatus({ ...status, targetTemperature: value });
+    markPending({ targetTemperature: value });
     // Agrupa cliques seguidos em um único comando.
     window.clearTimeout(tempTimer.current);
     tempTimer.current = window.setTimeout(
-      () => run({}, () => api.setTargetTemperature(value, mode)),
+      () => run({ targetTemperature: value }, () => api.setTargetTemperature(value, mode)),
       TEMPERATURE_DEBOUNCE_MS,
     );
   };
@@ -135,12 +173,39 @@ export default function App() {
     run({ [field]: timer }, () => api.setTimer(kind, minutes));
   };
 
+  /** Depois de salvar token, país ou aparelho: recarrega tudo do zero. */
+  const onSetupDone = async () => {
+    pending.current.clear();
+    setShowSetup(false);
+    setShowSettings(false);
+    setDevices(null);
+    setStatus(null);
+    setSetup(await setupApi.get());
+    refresh();
+  };
+
+  const chooseDevice = (id: string) => {
+    if (!setup?.country) return;
+    setupApi.save(null, setup.country, id).then(onSetupDone, (e) => setError(String(e)));
+  };
+
+  const disconnect = async () => {
+    await setupApi.clear();
+    setStatus(null);
+    setDevices(null);
+    setShowSettings(false);
+    setSetup(await setupApi.get());
+    setShowSetup(true);
+  };
+
   const changeTheme = (value: Theme) => {
     setTheme(value);
     writePref("theme", value);
   };
 
   const timeFormat = new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit" });
+  const regionName = new Intl.DisplayNames([i18n.language], { type: "region" });
+  const acs = (devices ?? []).filter((d) => d.deviceType === "DEVICE_AIR_CONDITIONER");
   const key = status ? statusKey(status) : "loading";
   const caps = status?.device.capabilities;
   const timerKind: TimerKind = status?.power ? "stop" : "start";
@@ -164,7 +229,14 @@ export default function App() {
         </button>
       </header>
 
-      {showSettings ? (
+      {showSetup ? (
+        <Setup
+          initialCountry={setup?.country ?? null}
+          hasToken={setup?.source === "app"}
+          onDone={onSetupDone}
+          onCancel={setup?.configured ? () => setShowSetup(false) : undefined}
+        />
+      ) : showSettings ? (
         <main className="settings">
           <h2>{t("settings.title")}</h2>
           <label>
@@ -192,25 +264,59 @@ export default function App() {
               />
             </label>
           )}
-          {devices && (
-            <div>
-              <h2>{t("settings.devices")}</h2>
-              <ul className="devices">
-                {devices.map((d) => (
-                  <li key={d.id}>
-                    <span>
-                      <strong>{d.name}</strong> {d.selected && <span className="badge">{t("settings.inUse")}</span>}
-                    </span>
-                    <span className="muted">
-                      {d.model} · {d.deviceType.replace("DEVICE_", "")}
-                    </span>
-                    <code className="selectable">{d.id}</code>
-                  </li>
-                ))}
-              </ul>
-              {devices.length > 1 && <p className="muted">{t("settings.devicesHint")}</p>}
-            </div>
-          )}
+          <div>
+            <h2>{t("account.title")}</h2>
+            {setup?.source === "env" ? (
+              <>
+                <p className="muted">{t("account.fromEnv")}</p>
+                {devices && (
+                  <ul className="devices">
+                    {devices.map((d) => (
+                      <li key={d.id}>
+                        <span>
+                          <strong>{d.name}</strong> {d.selected && <span className="badge">{t("settings.inUse")}</span>}
+                        </span>
+                        <span className="muted">
+                          {d.model} · {d.deviceType.replace("DEVICE_", "")}
+                        </span>
+                        <code className="selectable">{d.id}</code>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {devices && devices.length > 1 && <p className="muted">{t("settings.devicesHint")}</p>}
+              </>
+            ) : (
+              <>
+                <p className="muted">
+                  {t("account.country")}: {setup?.country ? regionName.of(setup.country) : "–"}
+                </p>
+                {acs.length > 1 && (
+                  <label>
+                    {t("account.device")}
+                    <select
+                      value={acs.find((d) => d.selected)?.id ?? ""}
+                      onChange={(e) => chooseDevice(e.target.value)}
+                    >
+                      {acs.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.model})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <div className="row">
+                  <button className="secondary" onClick={() => setShowSetup(true)}>
+                    {t("account.changeToken")}
+                  </button>
+                  <button className="secondary" onClick={disconnect}>
+                    {t("account.disconnect")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button className="secondary" onClick={() => setShowSettings(false)}>
             {t("settings.back")}
           </button>

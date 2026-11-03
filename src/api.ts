@@ -63,3 +63,21 @@ export const api = {
   setDisplayLight: (on: boolean) => invoke<void>("set_display_light", { on }),
   setTimer: (kind: TimerKind, minutes: number) => invoke<void>("set_timer", { kind, minutes }),
 };
+
+/** Erro devolvido pelo backend enquanto o app não foi configurado. */
+export const NOT_CONFIGURED = "not_configured";
+
+export interface SetupInfo {
+  configured: boolean;
+  source: "env" | "app" | null;
+  country: string | null;
+  deviceId: string | null;
+}
+
+export const setupApi = {
+  get: () => invoke<SetupInfo>("get_setup"),
+  /** `token` vazio reaproveita o token já salvo. */
+  save: (token: string | null, country: string, deviceId: string | null) =>
+    invoke<DeviceSummary[]>("save_setup", { token, country, deviceId }),
+  clear: () => invoke<void>("clear_setup"),
+};

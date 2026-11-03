@@ -16,10 +16,16 @@ use tokio::sync::Mutex;
 // Chave pública do cliente ThinQ Connect (a mesma do SDK oficial thinqconnect).
 const API_KEY: &str = "v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3";
 
-const AMERICAS: &[&str] = &["BR", "US", "CA", "MX", "AR", "CL", "CO", "PE", "UY", "PY"];
-const EUROPE: &[&str] = &["PT", "ES", "FR", "DE", "IT", "GB", "NL", "BE", "PL", "SE", "IE", "AT", "CH"];
+// Servidor regional por país: América = aic, Europa/Oriente Médio/África = eic, resto = kic.
+const AMERICAS: &[&str] = &[
+    "BR", "US", "CA", "MX", "AR", "CL", "CO", "PE", "UY", "PY", "BO", "EC", "VE", "CR", "PA", "GT", "DO", "PR",
+];
+const EUROPE: &[&str] = &[
+    "PT", "ES", "FR", "DE", "IT", "GB", "NL", "BE", "PL", "SE", "IE", "AT", "CH", "DK", "NO", "FI", "CZ", "GR",
+    "HU", "RO", "TR", "AE", "SA", "IL", "EG", "ZA", "MA", "NG", "KE",
+];
 
-const AIR_CONDITIONER: &str = "DEVICE_AIR_CONDITIONER";
+pub const AIR_CONDITIONER: &str = "DEVICE_AIR_CONDITIONER";
 
 // Campos de temperatura alvo, do mais genérico para os específicos de cada modo.
 const TARGET_FIELDS: &[(&str, Option<&str>)] = &[
@@ -29,6 +35,7 @@ const TARGET_FIELDS: &[(&str, Option<&str>)] = &[
     ("autoTargetTemperature", Some("AUTO")),
 ];
 
+#[derive(Debug, Clone)]
 pub struct Config {
     pub token: String,
     pub country: String,
@@ -38,7 +45,8 @@ pub struct Config {
 
 impl Config {
     /// Lê THINQ_* do ambiente, carregando o primeiro .env encontrado nos `dirs`.
-    pub fn load(dirs: &[PathBuf]) -> Result<Self, String> {
+    /// `None` se não houver THINQ_PAT.
+    pub fn from_env(dirs: &[PathBuf]) -> Option<Self> {
         for dir in dirs {
             let file = dir.join(".env");
             if file.is_file() {
@@ -47,14 +55,17 @@ impl Config {
             }
         }
         let var = |name: &str| env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
-        let token = var("THINQ_PAT").ok_or("THINQ_PAT não encontrado (.env)")?;
-        Ok(Self {
-            token,
+        Some(Self {
+            token: var("THINQ_PAT")?,
             country: var("THINQ_COUNTRY").unwrap_or_else(|| "BR".into()).to_uppercase(),
-            client_id: var("THINQ_CLIENT_ID").unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            client_id: var("THINQ_CLIENT_ID").unwrap_or_else(new_client_id),
             device_id: var("THINQ_DEVICE_ID"),
         })
     }
+}
+
+pub fn new_client_id() -> String {
+    uuid::Uuid::new_v4().to_string()
 }
 
 #[derive(Debug, Clone, Serialize)]
