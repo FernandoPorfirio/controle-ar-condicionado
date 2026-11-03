@@ -1,0 +1,286 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1b1f24;
+  --muted: #6b7280;
+  --border: #e3e6ea;
+  --accent: #0a84ff;
+  --accent-text: #ffffff;
+  --cool: #0a84ff;
+  --idle: #34c759;
+  --off: #9aa0a6;
+  --danger: #e5484d;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17191c;
+    --surface: #212429;
+    --text: #eceef1;
+    --muted: #9aa0a6;
+    --border: #30343a;
+    --accent: #3b9bff;
+    --cool: #5ab0ff;
+    --idle: #4cd964;
+    --off: #6b7075;
+    --danger: #ff6b6f;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #17191c;
+  --surface: #212429;
+  --text: #eceef1;
+  --muted: #9aa0a6;
+  --border: #30343a;
+  --accent: #3b9bff;
+  --cool: #5ab0ff;
+  --idle: #4cd964;
+  --off: #6b7075;
+  --danger: #ff6b6f;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 12px;
+  cursor: grab;
+}
+
+.title {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.icon {
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+}
+
+button.icon:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--text);
+}
+
+button.secondary {
+  background: transparent;
+}
+
+select {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 12px;
+  overflow-y: auto;
+}
+
+h2,
+h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--off);
+}
+
+[data-state="cooling"] .dot {
+  background: var(--cool);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+[data-state="reached"] .dot,
+[data-state="fan"] .dot,
+[data-state="drying"] .dot {
+  background: var(--idle);
+}
+
+[data-state="error"] .dot {
+  background: var(--danger);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.temps {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.big {
+  font-size: 28px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.arrow {
+  color: var(--muted);
+  padding-bottom: 8px;
+}
+
+.target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.target button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.power {
+  padding: 10px;
+  font-weight: 600;
+}
+
+.power.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 6px 2px;
+}
+
+.segmented button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings label.row {
+  flex-direction: row;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+footer {
+  padding: 8px 12px;
+  font-size: 11px;
+  min-height: 30px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.error {
+  color: var(--danger);
+}
