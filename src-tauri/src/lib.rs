@@ -102,8 +102,9 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
     let show = MenuItem::with_id(app, "show", label("Mostrar / ocultar", "Show / hide"), true, None::<&str>)?;
     let power = MenuItem::with_id(app, "power", label("Ligar / desligar o ar", "Turn AC on / off"), true, None::<&str>)?;
+    let config = MenuItem::with_id(app, "config", label("Abrir pasta do .env", "Open .env folder"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", label("Sair", "Quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &power, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &power, &config, &quit])?;
 
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("ícone padrão"))
@@ -114,6 +115,11 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             "show" => toggle_window(app),
             "power" => {
                 tauri::async_runtime::spawn(toggle_power(app.clone()));
+            }
+            "config" => {
+                if let Ok(dir) = app.path().app_config_dir() {
+                    let _ = std::process::Command::new("explorer").arg(dir).spawn();
+                }
             }
             "quit" => app.exit(0),
             _ => {}
@@ -148,10 +154,15 @@ pub fn run() {
             if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(Into::into)) {
                 dirs.push(exe_dir);
             }
-            if let Ok(config_dir) = app.path().app_config_dir() {
-                dirs.push(config_dir);
-            }
-            app.manage(Ac(Config::load(&dirs).map(ThinqClient::new)));
+            // Pasta de configuração do usuário (%APPDATA%\<identifier>): é onde o .env
+            // fica quando o app é instalado. Já criada para o usuário só colar o arquivo.
+            let config_dir = app.path().app_config_dir()?;
+            let _ = std::fs::create_dir_all(&config_dir);
+            dirs.push(config_dir.clone());
+            let client = Config::load(&dirs)
+                .map(ThinqClient::new)
+                .map_err(|e| format!("{e}. Coloque o .env em {}", config_dir.display()));
+            app.manage(Ac(client));
 
             setup_tray(app.handle())?;
             Ok(())
