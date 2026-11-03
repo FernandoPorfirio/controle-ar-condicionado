@@ -79,7 +79,7 @@ def main():
     for dev in devices:
         info = dev.get("deviceInfo", {})
         dev_id = dev["deviceId"]
-        print(f"- {info.get('alias')} | {info.get('deviceType')} | {info.get('modelName')}")
+        print(f"- {info.get('alias')} | {info.get('deviceType')} | {info.get('modelName')} | id: {dev_id}")
         if "AIR_CONDITIONER" not in info.get("deviceType", ""):
             continue
         profile = request(f"/devices/{dev_id}/profile", region)["response"]

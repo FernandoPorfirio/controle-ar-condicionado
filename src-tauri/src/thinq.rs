@@ -1,6 +1,8 @@
 //! Cliente mínimo da LG ThinQ Connect API para um ar-condicionado.
 //!
 //! O token (PAT) só existe aqui no lado Rust; a interface React nunca o vê.
+//! O que cada modelo suporta (modos, vento, faixa de temperatura, timers)
+//! vem do profile do aparelho, não de valores fixos.
 
 use std::env;
 use std::path::PathBuf;
@@ -17,8 +19,15 @@ const API_KEY: &str = "v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3";
 const AMERICAS: &[&str] = &["BR", "US", "CA", "MX", "AR", "CL", "CO", "PE", "UY", "PY"];
 const EUROPE: &[&str] = &["PT", "ES", "FR", "DE", "IT", "GB", "NL", "BE", "PL", "SE", "IE", "AT", "CH"];
 
-pub const MODES: &[&str] = &["COOL", "AIR_DRY", "FAN"];
-pub const WIND_STRENGTHS: &[&str] = &["AUTO", "LOW", "MID", "HIGH"];
+const AIR_CONDITIONER: &str = "DEVICE_AIR_CONDITIONER";
+
+// Campos de temperatura alvo, do mais genérico para os específicos de cada modo.
+const TARGET_FIELDS: &[(&str, Option<&str>)] = &[
+    ("targetTemperature", None),
+    ("coolTargetTemperature", Some("COOL")),
+    ("heatTargetTemperature", Some("HEAT")),
+    ("autoTargetTemperature", Some("AUTO")),
+];
 
 pub struct Config {
     pub token: String,
@@ -41,7 +50,7 @@ impl Config {
         let token = var("THINQ_PAT").ok_or("THINQ_PAT não encontrado (.env)")?;
         Ok(Self {
             token,
-            country: var("THINQ_COUNTRY").unwrap_or_else(|| "BR".into()),
+            country: var("THINQ_COUNTRY").unwrap_or_else(|| "BR".into()).to_uppercase(),
             client_id: var("THINQ_CLIENT_ID").unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
             device_id: var("THINQ_DEVICE_ID"),
         })
@@ -55,19 +64,54 @@ pub struct Timer {
     pub minutes: u32,
 }
 
+/// O que o modelo aceita, lido do profile.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Capabilities {
+    pub power: bool,
+    pub modes: Vec<String>,
+    pub wind_strengths: Vec<String>,
+    pub min_temperature: f64,
+    pub max_temperature: f64,
+    pub temperature_step: f64,
+    pub swing: bool,
+    pub display_light: bool,
+    pub start_timer: bool,
+    pub stop_timer: bool,
+    pub sleep_timer: bool,
+    #[serde(skip)]
+    target_fields: Vec<(&'static str, Option<&'static str>)>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    pub id: String,
+    pub name: String,
+    pub model: String,
+    pub capabilities: Capabilities,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceSummary {
+    pub id: String,
+    pub name: String,
+    pub model: String,
+    pub device_type: String,
+    pub selected: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AcStatus {
-    pub name: String,
-    pub model: String,
+    pub device: DeviceInfo,
     pub power: bool,
     pub error: bool,
     pub mode: String,
     pub current_temperature: Option<f64>,
     pub target_temperature: Option<f64>,
-    pub min_temperature: f64,
-    pub max_temperature: f64,
-    pub wind_strength: String,
+    pub wind_strength: Option<String>,
     pub swing: bool,
     pub display_light: bool,
     pub start_timer: Option<Timer>,
@@ -75,17 +119,11 @@ pub struct AcStatus {
     pub sleep_timer: Option<Timer>,
 }
 
-struct Device {
-    id: String,
-    name: String,
-    model: String,
-}
-
 pub struct ThinqClient {
     http: reqwest::Client,
     config: Config,
     base_url: String,
-    device: Mutex<Option<Device>>,
+    device: Mutex<Option<DeviceInfo>>,
 }
 
 impl ThinqClient {
@@ -130,61 +168,162 @@ impl ThinqClient {
         Ok(payload["response"].clone())
     }
 
-    /// Descobre o ar-condicionado da conta (uma vez) e devolve (id, nome, modelo).
-    async fn device(&self) -> Result<(String, String, String), String> {
-        let mut cached = self.device.lock().await;
-        if cached.is_none() {
-            let list = self.request(reqwest::Method::GET, "/devices", None).await?;
-            let found = list
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find(|d| match &self.config.device_id {
-                    Some(id) => d["deviceId"] == id.as_str(),
-                    None => d["deviceInfo"]["deviceType"] == "DEVICE_AIR_CONDITIONER",
-                })
-                .ok_or("Nenhum ar-condicionado encontrado na conta")?;
-            *cached = Some(Device {
-                id: found["deviceId"].as_str().unwrap_or_default().into(),
-                name: found["deviceInfo"]["alias"].as_str().unwrap_or("Ar-condicionado").into(),
-                model: found["deviceInfo"]["modelName"].as_str().unwrap_or_default().into(),
-            });
+    fn is_selected(&self, device: &Value) -> bool {
+        match &self.config.device_id {
+            Some(id) => device["deviceId"] == id.as_str(),
+            None => device["deviceInfo"]["deviceType"] == AIR_CONDITIONER,
         }
-        let d = cached.as_ref().unwrap();
-        Ok((d.id.clone(), d.name.clone(), d.model.clone()))
+    }
+
+    /// Todos os aparelhos da conta, marcando o que o app está controlando.
+    pub async fn devices(&self) -> Result<Vec<DeviceSummary>, String> {
+        let list = self.request(reqwest::Method::GET, "/devices", None).await?;
+        let mut selected_found = false;
+        Ok(list
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|d| {
+                let selected = !selected_found && self.is_selected(d);
+                selected_found |= selected;
+                DeviceSummary {
+                    id: d["deviceId"].as_str().unwrap_or_default().into(),
+                    name: d["deviceInfo"]["alias"].as_str().unwrap_or_default().into(),
+                    model: d["deviceInfo"]["modelName"].as_str().unwrap_or_default().into(),
+                    device_type: d["deviceInfo"]["deviceType"].as_str().unwrap_or_default().into(),
+                    selected,
+                }
+            })
+            .collect())
+    }
+
+    /// Descobre o ar-condicionado (THINQ_DEVICE_ID ou o primeiro da conta) e lê o profile, uma vez.
+    pub async fn device(&self) -> Result<DeviceInfo, String> {
+        let mut cached = self.device.lock().await;
+        if let Some(device) = cached.as_ref() {
+            return Ok(device.clone());
+        }
+        let list = self.request(reqwest::Method::GET, "/devices", None).await?;
+        let found = list
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|d| self.is_selected(d))
+            .ok_or(match &self.config.device_id {
+                Some(id) => format!("THINQ_DEVICE_ID {id} não encontrado na conta"),
+                None => "Nenhum ar-condicionado encontrado na conta".to_string(),
+            })?;
+        let id = found["deviceId"].as_str().unwrap_or_default().to_string();
+        let profile = self.request(reqwest::Method::GET, &format!("/devices/{id}/profile"), None).await?;
+        let device = DeviceInfo {
+            name: found["deviceInfo"]["alias"].as_str().unwrap_or("Ar-condicionado").into(),
+            model: found["deviceInfo"]["modelName"].as_str().unwrap_or_default().into(),
+            capabilities: Capabilities::from_profile(&profile["property"]),
+            id,
+        };
+        *cached = Some(device.clone());
+        Ok(device)
     }
 
     pub async fn status(&self) -> Result<AcStatus, String> {
-        let (id, name, model) = self.device().await?;
-        let s = self.request(reqwest::Method::GET, &format!("/devices/{id}/state"), None).await?;
+        let device = self.device().await?;
+        let s = self.request(reqwest::Method::GET, &format!("/devices/{}/state", device.id), None).await?;
         let temp = s["temperatureInUnits"]
             .as_array()
             .and_then(|units| units.iter().find(|u| u["unit"] == "C"))
             .unwrap_or(&s["temperature"]);
+        let mode = s["airConJobMode"]["currentJobMode"].as_str().unwrap_or_default().to_string();
+        // Alguns modelos só informam o alvo do modo atual (coolTargetTemperature etc.).
+        let target = TARGET_FIELDS
+            .iter()
+            .filter(|(_, m)| m.is_none_or(|m| m == mode))
+            .find_map(|(field, _)| temp[*field].as_f64());
         Ok(AcStatus {
-            name,
-            model,
             power: s["operation"]["airConOperationMode"] == "POWER_ON",
             error: s["runState"]["currentState"] == "ERROR",
-            mode: s["airConJobMode"]["currentJobMode"].as_str().unwrap_or("COOL").into(),
+            mode,
             current_temperature: temp["currentTemperature"].as_f64(),
-            target_temperature: temp["targetTemperature"].as_f64(),
-            min_temperature: temp["minTargetTemperature"].as_f64().unwrap_or(18.0),
-            max_temperature: temp["maxTargetTemperature"].as_f64().unwrap_or(30.0),
-            wind_strength: s["airFlow"]["windStrength"].as_str().unwrap_or("AUTO").into(),
+            target_temperature: target,
+            wind_strength: s["airFlow"]["windStrength"].as_str().map(Into::into),
             swing: s["windDirection"]["rotateUpDown"].as_bool().unwrap_or(false),
             display_light: s["display"]["light"] != "OFF",
             start_timer: timer(&s["timer"], "relativeStartTimer", "Start"),
             stop_timer: timer(&s["timer"], "relativeStopTimer", "Stop"),
             sleep_timer: timer(&s["sleepTimer"], "relativeStopTimer", "Stop"),
+            device,
         })
     }
 
     pub async fn control(&self, body: Value) -> Result<(), String> {
-        let (id, _, _) = self.device().await?;
-        self.request(reqwest::Method::POST, &format!("/devices/{id}/control"), Some(body)).await?;
+        let device = self.device().await?;
+        self.request(reqwest::Method::POST, &format!("/devices/{}/control", device.id), Some(body))
+            .await?;
         Ok(())
     }
+}
+
+impl Capabilities {
+    fn from_profile(p: &Value) -> Self {
+        let temp = &p["temperature"];
+        let target_fields: Vec<_> = TARGET_FIELDS.iter().copied().filter(|(f, _)| writable(&temp[*f])).collect();
+        let (min, max, step) = target_fields
+            .iter()
+            .find_map(|(f, _)| range(&temp[*f]))
+            .unwrap_or((18.0, 30.0, 1.0));
+        Self {
+            power: writable(&p["operation"]["airConOperationMode"]),
+            modes: write_values(&p["airConJobMode"]["currentJobMode"]),
+            wind_strengths: write_values(&p["airFlow"]["windStrength"]),
+            min_temperature: min,
+            max_temperature: max,
+            temperature_step: step,
+            swing: writable(&p["windDirection"]["rotateUpDown"]),
+            display_light: writable(&p["display"]["light"]),
+            start_timer: writable(&p["timer"]["relativeHourToStart"]),
+            stop_timer: writable(&p["timer"]["relativeHourToStop"]),
+            sleep_timer: writable(&p["sleepTimer"]["relativeHourToStop"]),
+            target_fields,
+        }
+    }
+
+    pub fn supports_mode(&self, mode: &str) -> bool {
+        self.modes.iter().any(|m| m == mode)
+    }
+
+    pub fn supports_wind(&self, strength: &str) -> bool {
+        self.wind_strengths.iter().any(|w| w == strength)
+    }
+
+    /// Comando de temperatura alvo no campo que o modelo aceita para o modo atual.
+    pub fn temperature_body(&self, mode: &str, value: f64) -> Result<Value, String> {
+        let field = self
+            .target_fields
+            .iter()
+            .find(|(_, m)| m.is_none_or(|m| m == mode))
+            .or(self.target_fields.first())
+            .map(|(f, _)| *f)
+            .ok_or("Este modelo não permite mudar a temperatura")?;
+        let value = value.clamp(self.min_temperature, self.max_temperature);
+        Ok(json!({ "temperature": { field: value } }))
+    }
+}
+
+fn writable(prop: &Value) -> bool {
+    prop["mode"].as_array().is_some_and(|m| m.iter().any(|x| x == "w"))
+}
+
+fn write_values(prop: &Value) -> Vec<String> {
+    prop["value"]["w"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|v| v.as_str().map(Into::into))
+        .collect()
+}
+
+fn range(prop: &Value) -> Option<(f64, f64, f64)> {
+    let r = &prop["value"]["w"];
+    Some((r["min"].as_f64()?, r["max"].as_f64()?, r["step"].as_f64().unwrap_or(1.0)))
 }
 
 fn timer(section: &Value, flag: &str, suffix: &str) -> Option<Timer> {

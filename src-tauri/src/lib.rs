@@ -6,7 +6,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
 
-use thinq::{AcStatus, Config, MODES, ThinqClient, WIND_STRENGTHS, timer_body};
+use thinq::{AcStatus, Config, DeviceSummary, ThinqClient, timer_body};
 
 /// O cliente, ou a mensagem de erro de configuração para mostrar na janela.
 struct Ac(Result<ThinqClient, String>);
@@ -23,6 +23,11 @@ async fn get_status(ac: State<'_, Ac>) -> Result<AcStatus, String> {
 }
 
 #[tauri::command]
+async fn list_devices(ac: State<'_, Ac>) -> Result<Vec<DeviceSummary>, String> {
+    ac.client()?.devices().await
+}
+
+#[tauri::command]
 async fn set_power(ac: State<'_, Ac>, on: bool) -> Result<(), String> {
     let mode = if on { "POWER_ON" } else { "POWER_OFF" };
     ac.client()?.control(json!({ "operation": { "airConOperationMode": mode } })).await
@@ -30,25 +35,28 @@ async fn set_power(ac: State<'_, Ac>, on: bool) -> Result<(), String> {
 
 #[tauri::command]
 async fn set_mode(ac: State<'_, Ac>, mode: String) -> Result<(), String> {
-    if !MODES.contains(&mode.as_str()) {
-        return Err(format!("Modo inválido: {mode}"));
+    let client = ac.client()?;
+    if !client.device().await?.capabilities.supports_mode(&mode) {
+        return Err(format!("Modo não suportado: {mode}"));
     }
-    ac.client()?.control(json!({ "airConJobMode": { "currentJobMode": mode } })).await
+    client.control(json!({ "airConJobMode": { "currentJobMode": mode } })).await
 }
 
+/// `mode` é o modo atual: alguns modelos têm um campo de alvo por modo.
 #[tauri::command]
-async fn set_target_temperature(ac: State<'_, Ac>, value: f64) -> Result<(), String> {
-    // Faixa do profile do aparelho; o app usa graus inteiros (o ar aceita 0,5).
-    let value = value.clamp(18.0, 30.0).round();
-    ac.client()?.control(json!({ "temperature": { "targetTemperature": value } })).await
+async fn set_target_temperature(ac: State<'_, Ac>, value: f64, mode: String) -> Result<(), String> {
+    let client = ac.client()?;
+    let body = client.device().await?.capabilities.temperature_body(&mode, value)?;
+    client.control(body).await
 }
 
 #[tauri::command]
 async fn set_wind_strength(ac: State<'_, Ac>, strength: String) -> Result<(), String> {
-    if !WIND_STRENGTHS.contains(&strength.as_str()) {
-        return Err(format!("Velocidade inválida: {strength}"));
+    let client = ac.client()?;
+    if !client.device().await?.capabilities.supports_wind(&strength) {
+        return Err(format!("Velocidade não suportada: {strength}"));
     }
-    ac.client()?.control(json!({ "airFlow": { "windStrength": strength } })).await
+    client.control(json!({ "airFlow": { "windStrength": strength } })).await
 }
 
 #[tauri::command]
@@ -176,6 +184,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
+            list_devices,
             set_power,
             set_mode,
             set_target_temperature,

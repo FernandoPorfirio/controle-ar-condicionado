@@ -284,3 +284,41 @@ footer {
 .error {
   color: var(--danger);
 }
+
+.segmented {
+  flex-wrap: wrap;
+}
+
+.segmented button {
+  min-width: calc(25% - 3px);
+}
+
+.devices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.devices li {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.badge {
+  font-size: 10px;
+  color: var(--accent);
+}
+
+.selectable {
+  user-select: text;
+  font-size: 10px;
+  color: var(--muted);
+  word-break: break-all;
+}

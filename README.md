@@ -6,11 +6,19 @@ Pela janela dá para:
 
 - ligar e desligar
 - mudar a temperatura alvo (passos de 1 °C)
-- escolher o modo (frio, secar, ventilar), a velocidade do vento e a oscilação
+- escolher o modo, a velocidade do vento e a oscilação
 - programar o timer para ligar ou desligar
-- ver se o ar está gelando (temperatura ambiente → alvo)
+- ver se o ar está gelando ou aquecendo (temperatura ambiente → alvo)
+
+Os botões se adaptam ao seu modelo: modos (frio, quente, auto, secar, ventilar…), velocidades e faixa de temperatura vêm do profile que a LG informa para o aparelho. Funções que o seu ar não tem não aparecem.
 
 A interface tem PT-BR e inglês, e tema claro, escuro ou do sistema.
+
+## Instalação
+
+Baixe o instalador (`…-setup.exe`) da última versão em [Releases](../../releases), instale e siga a [Configuração](#configuração).
+
+O instalador não tem assinatura digital, então o Windows pode mostrar "O Windows protegeu o computador". Clique em **Mais informações → Executar assim mesmo**.
 
 Stack: [Tauri 2](https://tauri.app) (Rust) + React + TypeScript + pnpm.
 
@@ -24,6 +32,7 @@ Stack: [Tauri 2](https://tauri.app) (Rust) + React + TypeScript + pnpm.
    - `THINQ_PAT`: o token gerado acima
    - `THINQ_COUNTRY`: o código do país da conta LG (ex.: `BR`, `US`, `PT`)
    - `THINQ_CLIENT_ID`: qualquer UUID, fixo para a sua instalação (no PowerShell: `[guid]::NewGuid()`). Se ficar vazio, o app gera um novo a cada execução.
+   - `THINQ_DEVICE_ID` (opcional): só se a conta tiver mais de um ar-condicionado. Sem ele, o app controla o primeiro que encontrar. Os IDs aparecem no app em **⚙ → Aparelhos na conta**.
 3. Coloque o `.env` no lugar certo para o seu caso:
 
    | Como você usa o app | Onde fica o `.env` |
@@ -51,6 +60,14 @@ Instalador (`src-tauri/target/release/bundle/nsis/`):
 ```bash
 pnpm tauri build
 ```
+
+### Publicar uma versão
+
+O workflow [`release.yml`](.github/workflows/release.yml) compila o instalador no GitHub Actions e cria um rascunho em Releases sempre que uma tag `v*` é enviada:
+
+1. Atualize a versão em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
+2. Crie e envie a tag: `git tag v0.2.0 && git push origin v0.2.0`.
+3. Quando o workflow terminar, revise o rascunho em Releases e publique.
 
 Para conferir o token e ver o que o seu aparelho suporta, sem enviar comandos:
 

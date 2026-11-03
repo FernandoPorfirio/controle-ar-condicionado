@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, type AcStatus, type Mode, type TimerKind, type WindStrength } from "./api";
+import { api, type AcStatus, type DeviceSummary, type TimerKind } from "./api";
 import { setLanguage } from "./i18n";
 
 // A LG limita chamadas por token; 60 s é seguro para uso contínuo.
@@ -10,8 +10,6 @@ const POLL_MS = 60_000;
 const REFRESH_AFTER_COMMAND_MS = 2_500;
 const TEMPERATURE_DEBOUNCE_MS = 700;
 
-const MODES: Mode[] = ["COOL", "AIR_DRY", "FAN"];
-const WINDS: WindStrength[] = ["AUTO", "LOW", "MID", "HIGH"];
 const TIMER_OPTIONS = [30, 60, 120, 180, 240, 360, 480];
 
 type Theme = "system" | "light" | "dark";
@@ -46,12 +44,15 @@ function formatDuration(minutes: number) {
 function statusKey(s: AcStatus) {
   if (s.error) return "error";
   if (!s.power) return "off";
-  if (s.mode === "FAN") return "fan";
+  const reached = (heating: boolean) =>
+    s.currentTemperature != null &&
+    s.targetTemperature != null &&
+    (heating ? s.currentTemperature >= s.targetTemperature : s.currentTemperature <= s.targetTemperature);
+  if (s.mode === "COOL") return reached(false) ? "reached" : "cooling";
+  if (s.mode === "HEAT") return reached(true) ? "reached" : "heating";
+  if (s.mode === "AUTO") return "auto";
   if (s.mode === "AIR_DRY") return "drying";
-  if (s.currentTemperature != null && s.targetTemperature != null && s.currentTemperature <= s.targetTemperature) {
-    return "reached";
-  }
-  return "cooling";
+  return "fan";
 }
 
 export default function App() {
@@ -62,6 +63,7 @@ export default function App() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => readPref("theme", "system"));
+  const [devices, setDevices] = useState<DeviceSummary[] | null>(null);
   const tempTimer = useRef<number | undefined>(undefined);
   const refreshTimer = useRef<number | undefined>(undefined);
 
@@ -87,6 +89,10 @@ export default function App() {
 
   useEffect(() => applyTheme(theme), [theme]);
 
+  useEffect(() => {
+    if (showSettings && !devices) api.listDevices().then(setDevices, (e) => setError(String(e)));
+  }, [showSettings, devices]);
+
   /** Aplica a mudança na hora (otimista), manda para a LG e confirma o estado depois. */
   const run = useCallback(
     async (patch: Partial<AcStatus>, command: () => Promise<void>) => {
@@ -108,13 +114,19 @@ export default function App() {
 
   const changeTemperature = (delta: number) => {
     if (!status?.targetTemperature) return;
-    // Arredonda para graus inteiros caso o alvo tenha sido ajustado em 0,5 pelo app da LG.
-    const next = Math.round(status.targetTemperature + delta);
-    const value = Math.min(status.maxTemperature, Math.max(status.minTemperature, next));
+    const { minTemperature, maxTemperature, temperatureStep } = status.device.capabilities;
+    // Passo de 1 °C (ou maior, se o modelo exigir); arredonda alvos de 0,5 ajustados no app da LG.
+    const step = Math.max(1, temperatureStep);
+    const next = Math.round((status.targetTemperature + delta * step) / step) * step;
+    const value = Math.min(maxTemperature, Math.max(minTemperature, next));
+    const mode = status.mode;
     setStatus({ ...status, targetTemperature: value });
     // Agrupa cliques seguidos em um único comando.
     window.clearTimeout(tempTimer.current);
-    tempTimer.current = window.setTimeout(() => run({}, () => api.setTargetTemperature(value)), TEMPERATURE_DEBOUNCE_MS);
+    tempTimer.current = window.setTimeout(
+      () => run({}, () => api.setTargetTemperature(value, mode)),
+      TEMPERATURE_DEBOUNCE_MS,
+    );
   };
 
   const setTimer = (kind: TimerKind, minutes: number) => {
@@ -130,14 +142,16 @@ export default function App() {
 
   const timeFormat = new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit" });
   const key = status ? statusKey(status) : "loading";
+  const caps = status?.device.capabilities;
   const timerKind: TimerKind = status?.power ? "stop" : "start";
+  const timerSupported = status?.power ? caps?.stopTimer : caps?.startTimer;
   const activeTimer = status?.power ? status.stopTimer : status?.startTimer;
 
   return (
     <div className="app" data-state={key}>
       <header className="titlebar" data-tauri-drag-region>
         <span className="title" data-tauri-drag-region>
-          {status?.name ?? "LG ThinQ"}
+          {status?.device.name ?? "LG ThinQ"}
         </span>
         <button className="icon" title={t("actions.refresh")} onClick={refresh} disabled={busy}>
           ↻
@@ -168,7 +182,7 @@ export default function App() {
               <option value="dark">{t("settings.themeDark")}</option>
             </select>
           </label>
-          {status && (
+          {status && caps?.displayLight && (
             <label className="row">
               {t("settings.displayLight")}
               <input
@@ -178,7 +192,25 @@ export default function App() {
               />
             </label>
           )}
-          {status && <p className="muted">{status.model}</p>}
+          {devices && (
+            <div>
+              <h2>{t("settings.devices")}</h2>
+              <ul className="devices">
+                {devices.map((d) => (
+                  <li key={d.id}>
+                    <span>
+                      <strong>{d.name}</strong> {d.selected && <span className="badge">{t("settings.inUse")}</span>}
+                    </span>
+                    <span className="muted">
+                      {d.model} · {d.deviceType.replace("DEVICE_", "")}
+                    </span>
+                    <code className="selectable">{d.id}</code>
+                  </li>
+                ))}
+              </ul>
+              {devices.length > 1 && <p className="muted">{t("settings.devicesHint")}</p>}
+            </div>
+          )}
           <button className="secondary" onClick={() => setShowSettings(false)}>
             {t("settings.back")}
           </button>
@@ -213,73 +245,83 @@ export default function App() {
 
           <button
             className={`power ${status?.power ? "on" : ""}`}
-            disabled={!status}
+            disabled={!caps?.power}
             onClick={() => status && run({ power: !status.power }, () => api.setPower(!status.power))}
           >
             ⏻ {status?.power ? t("power.off") : t("power.on")}
           </button>
 
-          <section>
-            <h3>{t("mode.title")}</h3>
-            <div className="segmented">
-              {MODES.map((m) => (
-                <button
-                  key={m}
-                  className={status?.mode === m ? "active" : ""}
-                  disabled={!status?.power}
-                  onClick={() => run({ mode: m }, () => api.setMode(m))}
-                >
-                  {t(`mode.${m}`)}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3>{t("wind.title")}</h3>
-            <div className="segmented">
-              {WINDS.map((w) => (
-                <button
-                  key={w}
-                  className={status?.windStrength === w ? "active" : ""}
-                  disabled={!status?.power}
-                  onClick={() => run({ windStrength: w }, () => api.setWindStrength(w))}
-                >
-                  {t(`wind.${w}`)}
-                </button>
-              ))}
-            </div>
-            <label className="row">
-              {t("swing")}
-              <input
-                type="checkbox"
-                checked={status?.swing ?? false}
-                disabled={!status?.power}
-                onChange={(e) => run({ swing: e.target.checked }, () => api.setSwing(e.target.checked))}
-              />
-            </label>
-          </section>
-
-          <section>
-            <h3>{t(`timer.${timerKind}`)}</h3>
-            {activeTimer ? (
-              <div className="row">
-                <span>{t("timer.active", { time: formatDuration(activeTimer.hours * 60 + activeTimer.minutes) })}</span>
-                <button className="secondary" onClick={() => setTimer(timerKind, 0)}>
-                  {t("timer.cancel")}
-                </button>
-              </div>
-            ) : (
-              <select disabled={!status} value="" onChange={(e) => setTimer(timerKind, Number(e.target.value))}>
-                <option value="">{t("timer.none")}</option>
-                {TIMER_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {formatDuration(m)}
-                  </option>
+          {caps && caps.modes.length > 1 && (
+            <section>
+              <h3>{t("mode.title")}</h3>
+              <div className="segmented">
+                {caps.modes.map((m) => (
+                  <button
+                    key={m}
+                    className={status?.mode === m ? "active" : ""}
+                    disabled={!status?.power}
+                    onClick={() => run({ mode: m }, () => api.setMode(m))}
+                  >
+                    {t(`mode.${m}`, { defaultValue: m })}
+                  </button>
                 ))}
-              </select>
-            )}
-          </section>
+              </div>
+            </section>
+          )}
+
+          {caps && (caps.windStrengths.length > 0 || caps.swing) && (
+            <section>
+              <h3>{t("wind.title")}</h3>
+              <div className="segmented">
+                {caps.windStrengths.map((w) => (
+                  <button
+                    key={w}
+                    className={status?.windStrength === w ? "active" : ""}
+                    disabled={!status?.power}
+                    onClick={() => run({ windStrength: w }, () => api.setWindStrength(w))}
+                  >
+                    {t(`wind.${w}`, { defaultValue: w })}
+                  </button>
+                ))}
+              </div>
+              {caps.swing && (
+                <label className="row">
+                  {t("swing")}
+                  <input
+                    type="checkbox"
+                    checked={status?.swing ?? false}
+                    disabled={!status?.power}
+                    onChange={(e) => run({ swing: e.target.checked }, () => api.setSwing(e.target.checked))}
+                  />
+                </label>
+              )}
+            </section>
+          )}
+
+          {timerSupported && (
+            <section>
+              <h3>{t(`timer.${timerKind}`)}</h3>
+              {activeTimer ? (
+                <div className="row">
+                  <span>
+                    {t("timer.active", { time: formatDuration(activeTimer.hours * 60 + activeTimer.minutes) })}
+                  </span>
+                  <button className="secondary" onClick={() => setTimer(timerKind, 0)}>
+                    {t("timer.cancel")}
+                  </button>
+                </div>
+              ) : (
+                <select disabled={!status} value="" onChange={(e) => setTimer(timerKind, Number(e.target.value))}>
+                  <option value="">{t("timer.none")}</option>
+                  {TIMER_OPTIONS.map((m) => (
+                    <option key={m} value={m}>
+                      {formatDuration(m)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </section>
+          )}
         </main>
       )}
 
