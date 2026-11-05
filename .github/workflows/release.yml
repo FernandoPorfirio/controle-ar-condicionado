@@ -33,6 +33,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Usa a seção da versão no CHANGELOG.md como texto da release.
+      - name: Notas da versão
+        id: notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            echo 'text<<EOF_NOTES'
+            awk -v v="$version" '/^## \[/ { p = index($0, "[" v "]") > 0; next } /^\[.*\]: / { next } p' CHANGELOG.md
+            echo 'EOF_NOTES'
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,6 +52,10 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: Ar-condicionado ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseBody: |
+            ${{ steps.notes.outputs.text }}
+
+            ---
+
             **Instalar:** baixe o `Ar-condicionado_…_x64-setup.exe` em *Assets*, logo abaixo, e rode.
             O Windows pode avisar "O Windows protegeu o computador": clique em **Mais informações → Executar assim mesmo**.
 

@@ -64,6 +64,15 @@ export const api = {
   setTimer: (kind: TimerKind, minutes: number) => invoke<void>("set_timer", { kind, minutes }),
 };
 
+/** Estado do ar para o ícone da bandeja (cor do pontinho). */
+export type TrayState = "cooling" | "idle" | "off" | "error";
+
+export const appApi = {
+  getAutostart: () => invoke<boolean>("get_autostart"),
+  setAutostart: (on: boolean) => invoke<void>("set_autostart", { on }),
+  setTrayState: (state: TrayState, tooltip: string) => invoke<void>("set_tray_state", { state, tooltip }),
+};
+
 /** Erro devolvido pelo backend enquanto o app não foi configurado. */
 export const NOT_CONFIGURED = "not_configured";
 

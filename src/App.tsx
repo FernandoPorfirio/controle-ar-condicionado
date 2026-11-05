@@ -2,17 +2,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   api,
+  appApi,
   NOT_CONFIGURED,
   setupApi,
   type AcStatus,
   type DeviceSummary,
   type SetupInfo,
   type TimerKind,
+  type TrayState,
 } from "./api";
+import { actionsFor, isPersistent, parseError, type AppError, type ErrorAction } from "./errors";
 import { setLanguage } from "./i18n";
 import Icon from "./Icon";
+import Notice from "./Notice";
 import Setup from "./Setup";
 import { useWindowFit } from "./useWindowFit";
 
@@ -28,6 +33,11 @@ const TIMER_OPTIONS = [30, 60, 120, 180, 240, 360, 480];
 // Painel de controles fecha sozinho depois que o mouse sai.
 const AUTO_CLOSE_MS = 6_000;
 const IDLE_OPACITIES = ["1", "0.8", "0.55"];
+// Aviso de comando recusado: some sozinho.
+const NOTICE_MS = 5_000;
+const PAT_URL = "https://connect-pat.lgthinq.com";
+const REPO_URL = "https://github.com/FernandoPorfirio/controle-ar-condicionado";
+const HELP_URL = `${REPO_URL}#problemas-comuns`;
 
 type Panel = "controls" | "settings" | "setup" | null;
 
@@ -93,7 +103,10 @@ function statusKey(s: AcStatus) {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<AcStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
@@ -105,9 +118,10 @@ export default function App() {
   const tempTimer = useRef<number | undefined>(undefined);
   const refreshTimer = useRef<number | undefined>(undefined);
   const closeTimer = useRef<number | undefined>(undefined);
+  const noticeTimer = useRef<number | undefined>(undefined);
   const pending = useRef<Pending>(new Map());
   const widget = useRef<HTMLDivElement>(null);
-  const dir = useWindowFit(widget, hover || panel !== null);
+  const dir = useWindowFit(widget, hover || panel !== null || notice !== null);
 
   const markPending = (patch: Partial<AcStatus>) => {
     for (const [key, value] of Object.entries(patch))
@@ -121,7 +135,7 @@ export default function App() {
       setUpdatedAt(new Date());
     } catch (e) {
       if (String(e) === NOT_CONFIGURED) setPanel("setup");
-      else setError(String(e));
+      else setError(parseError(e));
     }
   }, []);
 
@@ -130,9 +144,12 @@ export default function App() {
     refresh();
     const id = window.setInterval(refresh, POLL_MS);
     const unlisten = listen("status-changed", () => window.setTimeout(refresh, REFRESH_AFTER_COMMAND_MS));
+    // O item "Iniciar com o Windows" da bandeja também muda a opção.
+    const unlistenAutostart = listen<boolean>("autostart-changed", (e) => setAutostart(e.payload));
     return () => {
       window.clearInterval(id);
       unlisten.then((fn) => fn());
+      unlistenAutostart.then((fn) => fn());
     };
   }, [refresh]);
 
@@ -140,8 +157,16 @@ export default function App() {
   useEffect(() => applyIdleOpacity(idleOpacity), [idleOpacity]);
 
   useEffect(() => {
-    if (panel === "settings" && !devices) api.listDevices().then(setDevices, (e) => setError(String(e)));
+    if (panel === "settings" && !devices) api.listDevices().then(setDevices, (e) => setError(parseError(e)));
+    if (panel === "settings") appApi.getAutostart().then(setAutostart, () => setAutostart(null));
   }, [panel, devices]);
+
+  /** Aviso curto colado na barra, para um comando que o ar recusou. */
+  const showNotice = useCallback((text: string) => {
+    setNotice(text);
+    window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_MS);
+  }, []);
 
   /** Aplica a mudança na hora (otimista), manda para a LG e confirma o estado depois. */
   const run = useCallback(
@@ -155,14 +180,17 @@ export default function App() {
       } catch (e) {
         // O comando falhou: o estado lido volta a valer.
         for (const key of Object.keys(patch)) pending.current.delete(key);
-        setError(String(e));
+        const err = parseError(e);
+        // Problemas de conexão ou de token ficam no painel; o resto é um comando recusado.
+        if (isPersistent(err) && err.kind !== "unknown") setError(err);
+        else showNotice(err.kind === "unknown" ? t("errors.rejected") : t(`errors.${err.kind}.text`));
       } finally {
         setBusy(false);
         window.clearTimeout(refreshTimer.current);
         refreshTimer.current = window.setTimeout(refresh, REFRESH_AFTER_COMMAND_MS);
       }
     },
-    [refresh],
+    [refresh, showNotice, t],
   );
 
   const changeTemperature = (delta: number) => {
@@ -201,7 +229,7 @@ export default function App() {
 
   const chooseDevice = (id: string) => {
     if (!setup?.country) return;
-    setupApi.save(null, setup.country, id).then(onSetupDone, (e) => setError(String(e)));
+    setupApi.save(null, setup.country, id).then(onSetupDone, (e) => setError(parseError(e)));
   };
 
   const disconnect = async () => {
@@ -220,6 +248,27 @@ export default function App() {
   const changeIdleOpacity = (value: string) => {
     setIdleOpacity(value);
     writePref("idleOpacity", value);
+  };
+
+  const changeAutostart = (on: boolean) => {
+    appApi.setAutostart(on).then(
+      () => setAutostart(on),
+      () => showNotice(`${t("errors.autostart.title")}. ${t("errors.autostart.text")}`),
+    );
+  };
+
+  const doErrorAction = (action: ErrorAction) => {
+    if (action === "retry") refresh();
+    else if (action === "changeToken" || action === "changeCountry") setPanel("setup");
+    else if (action === "chooseDevice") setPanel("settings");
+    else if (action === "openSite") openUrl(PAT_URL);
+    else if (action === "howToFix") openUrl(HELP_URL);
+    else if (action === "copy" && error) {
+      navigator.clipboard.writeText(`${error.kind}: ${error.detail}`).then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2_000);
+      });
+    }
   };
 
   const onMouseEnter = () => {
@@ -247,9 +296,54 @@ export default function App() {
   const statusText = t(`status.${key}`);
   const updatedText = updatedAt ? t("updated", { time: timeFormat.format(updatedAt) }) : "";
   const fmt = (n: number | null | undefined) => (n == null ? "–" : `${n.toLocaleString(i18n.language)}°`);
+  const errorTitle = error ? t(`errors.${error.kind}.title`) : "";
+
+  // Ícone da bandeja: o pontinho repete a cor do estado do ar.
+  useEffect(() => {
+    if (!status && !error) return;
+    const tray: TrayState =
+      error || key === "error" ? "error" : key === "off" ? "off" : key === "cooling" || key === "heating" ? "cooling" : "idle";
+    const tooltip = error
+      ? errorTitle
+      : `${statusText} · ${fmt(status?.currentTemperature)} → ${fmt(status?.targetTemperature)}`;
+    appApi.setTrayState(tray, tooltip).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, error, errorTitle, statusText, status?.currentTemperature, status?.targetTemperature]);
+
+  const notices = (
+    <>
+      {error && (
+        <Notice
+          severity="error"
+          title={errorTitle}
+          actions={
+            actionsFor(error).length > 0 &&
+            actionsFor(error).map((a) => (
+              <button key={a} className="secondary small" onClick={() => doErrorAction(a)}>
+                {a === "copy" && copied ? t("errors.actions.copied") : t(`errors.actions.${a}`)}
+              </button>
+            ))
+          }
+          footnote={
+            <>
+              {updatedAt && <span>{t("errors.lastRead", { time: timeFormat.format(updatedAt) })}</span>}
+              {error.detail && (
+                <code className="selectable" title={error.detail}>
+                  {error.detail}
+                </code>
+              )}
+            </>
+          }
+        >
+          {t(`errors.${error.kind}.text`)}
+        </Notice>
+      )}
+    </>
+  );
 
   const controls = (
     <>
+      {notices}
       {caps && caps.modes.length > 1 && (
         <div className="field">
           <span className="label">{t("mode.title")}</span>
@@ -327,15 +421,9 @@ export default function App() {
       </div>
 
       <footer>
-        {error ? (
-          <span className="error" title={error}>
-            {error}
-          </span>
-        ) : (
-          <span className="muted" title={updatedText}>
-            {statusText} · {updatedText}
-          </span>
-        )}
+        <span className="muted" title={updatedText}>
+          {status ? [statusText, updatedText].filter(Boolean).join(" · ") : ""}
+        </span>
         <span className="grow" />
         <button className="icon" title={t("actions.refresh")} onClick={refresh} disabled={busy}>
           <Icon name="refresh" />
@@ -353,6 +441,12 @@ export default function App() {
   const settings = (
     <div className="settings">
       <h2>{t("settings.title")}</h2>
+      {autostart !== null && (
+        <label className="toggle">
+          <input type="checkbox" checked={autostart} onChange={(e) => changeAutostart(e.target.checked)} />
+          {t("settings.autostart")}
+        </label>
+      )}
       <label>
         {t("settings.language")}
         <select value={i18n.language} onChange={(e) => setLanguage(e.target.value)}>
@@ -455,10 +549,10 @@ export default function App() {
     >
       <div className="bar" data-tauri-drag-region>
         <span className="grip start" data-tauri-drag-region title={t("actions.drag")} />
-        <i className="dot" title={error ?? `${statusText}${updatedText ? ` · ${updatedText}` : ""}`} />
+        <i className="dot" title={error ? errorTitle : `${statusText}${updatedText ? ` · ${updatedText}` : ""}`} />
         {configured && status ? (
           <>
-            <span className="room num" data-tauri-drag-region title={t("room")}>
+            <span className={`room num${error ? " stale" : ""}`} data-tauri-drag-region title={t("room")}>
               {fmt(status.currentTemperature)}
             </span>
             <span className="arrow" data-tauri-drag-region>
@@ -474,7 +568,7 @@ export default function App() {
                 −
               </button>
             </span>
-            <span className="target num" data-tauri-drag-region title={t("target")}>
+            <span className={`target num${error ? " stale" : ""}`} data-tauri-drag-region title={t("target")}>
               {fmt(status.targetTemperature)}
             </span>
             <span className="reveal">
@@ -500,12 +594,27 @@ export default function App() {
             </span>
           </>
         ) : (
-          <span className="bar-text" data-tauri-drag-region>
-            {configured ? t("status.loading") : t("setup.title")}
-          </span>
+          <>
+            <span className="bar-text" data-tauri-drag-region>
+              {!configured ? t("setup.title") : error ? errorTitle : t("status.loading")}
+            </span>
+            {configured && error && (
+              <span className="reveal">
+                <button className="icon more" title={t("actions.more")} onClick={() => togglePanel("controls")}>
+                  <Icon name="chevron" />
+                </button>
+              </span>
+            )}
+          </>
         )}
         <span className="grip end" data-tauri-drag-region title={t("actions.drag")} />
       </div>
+
+      {notice && (
+        <div className="bar-notice">
+          <Notice severity="warning">{notice}</Notice>
+        </div>
+      )}
 
       {panel && (
         <div className="panel">
@@ -513,6 +622,7 @@ export default function App() {
             <Setup
               initialCountry={setup?.country ?? null}
               hasToken={setup?.source === "app"}
+              offerAutostart={!setup?.configured}
               onDone={onSetupDone}
               onCancel={setup?.configured ? () => setPanel("settings") : undefined}
             />

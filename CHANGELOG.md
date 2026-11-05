@@ -6,6 +6,22 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Adicionado
+
+- Licença MIT.
+- O widget pode ficar em cima da barra de tarefas do Windows e continua na frente dela quando ela é clicada.
+- Iniciar com o Windows: caixa já marcada na primeira configuração, opção em ⚙ e item no menu da bandeja.
+- Ícone novo: floco de neve em círculo azul. Na bandeja, o pontinho do ícone muda de cor com o estado do ar e a dica mostra a temperatura.
+
+### Alterado
+
+- O app abre uma vez só: abrir de novo mostra o widget que já está aberto.
+- Ao soltar o widget, o limite passa a ser a tela inteira (antes era a área útil), para ele poder ficar sobre a barra de tarefas.
+- Mensagens de erro em linguagem simples, em PT-BR e inglês, com o que fazer (tentar de novo, trocar token, abrir o site da LG…) e o código técnico em letra pequena.
+- Com erro de conexão ou de token, as temperaturas ficam cinza para mostrar que são a última leitura.
+- Comando recusado pelo ar aparece como aviso curto colado na barra, que some sozinho.
+- O texto de cada release vem da seção da versão no CHANGELOG.
+
 ## [0.4.0] - 2026-11-05
 
 ### Alterado

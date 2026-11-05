@@ -4,6 +4,7 @@
 [![Downloads](https://img.shields.io/github/downloads/FernandoPorfirio/controle-ar-condicionado/total?label=downloads)](https://github.com/FernandoPorfirio/controle-ar-condicionado/releases)
 [![Release](https://github.com/FernandoPorfirio/controle-ar-condicionado/actions/workflows/release.yml/badge.svg)](https://github.com/FernandoPorfirio/controle-ar-condicionado/actions/workflows/release.yml)
 ![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6)
+[![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
 
 Widget para Windows que controla um ar-condicionado LG pela [ThinQ Connect API](https://connect-pat.lgthinq.com) oficial. É uma barra pequena, sempre no topo e arrastável, que mostra a temperatura do ambiente e o alvo e cresce só quando você vai usar.
 
@@ -16,6 +17,8 @@ Pelo widget dá para:
 - escolher o modo, a velocidade do vento e a oscilação
 - programar o timer para ligar ou desligar
 - ver se o ar está gelando ou aquecendo (temperatura ambiente → alvo)
+
+E ainda: abre junto com o Windows (se você quiser) e explica em português claro o que fazer quando algo dá errado (sem internet, token vencido, ar offline…).
 
 Os botões se adaptam ao seu modelo: modos (frio, quente, auto, secar, ventilar…), velocidades e faixa de temperatura vêm do profile que a LG informa para o aparelho. Funções que o seu ar não tem não aparecem.
 
@@ -35,16 +38,18 @@ Requisitos: Windows 10 ou 11, um ar-condicionado LG cadastrado no app LG ThinQ, 
 O widget é uma barra de uns 100 × 30 px: o ponto de status e **ambiente → alvo** (ex.: `24,5° → 18°`).
 
 - **Em repouso** ele fica semitransparente. A cor do ponto indica o estado: azul piscando = gelando ou aquecendo, verde = na temperatura ou só ventilando, cinza = desligado, vermelho = erro. Passe o mouse sobre o ponto para ver o status e a hora da última atualização.
+- **Se algo der errado** (sem internet, token inválido, ar offline), o ponto fica vermelho, as temperaturas ficam cinza (são a última leitura) e o painel mostra o que aconteceu e um botão para resolver. Se o ar recusar um comando, um aviso curto aparece colado na barra e some sozinho.
 - **Com o mouse em cima** aparecem **−** e **+** (temperatura), o botão redondo de **liga/desliga** e uma **seta**.
 - **A seta** abre o painel com modo, vento, oscilação, timer, atualizar, ⚙ configurações e ocultar. Ele fecha sozinho alguns segundos depois que o mouse sai.
 - **Perto das bordas** o widget cresce para dentro da tela: para a esquerda perto da borda direita e para cima perto da borda de baixo. A barra não sai do lugar.
-- **Arraste** pela barra (o pontilhado ⋮⋮, o ponto ou as temperaturas) para mudar de lugar. Se ficar parte fora da tela, ele volta para dentro ao soltar. O widget lembra a posição.
-- Em **⚙** ficam idioma, tema, opacidade em repouso, luz do display do ar e a conta LG.
+- **Arraste** pela barra (o pontilhado ⋮⋮, o ponto ou as temperaturas) para mudar de lugar. Pode deixar em cima da barra de tarefas: ele continua na frente dela. Se ficar parte fora da tela, ele volta para dentro ao soltar. O widget lembra a posição.
+- Abrir o app de novo (pelo menu Iniciar, por exemplo) só mostra o widget que já está aberto.
+- Em **⚙** ficam iniciar com o Windows, idioma, tema, opacidade em repouso, luz do display do ar, e a conta LG.
 
-O app também tem um ícone na bandeja do sistema, perto do relógio (às vezes escondido na setinha **^**):
+O app também tem um ícone na bandeja do sistema, perto do relógio (às vezes escondido na setinha **^**). O pontinho do ícone tem a mesma cor do estado do ar, e a dica mostra a temperatura:
 
 - **Clique esquerdo** no ícone: mostra ou esconde o widget.
-- **Clique direito**: menu com mostrar/ocultar, ligar/desligar o ar e **Sair**.
+- **Clique direito**: menu com mostrar/ocultar, ligar/desligar o ar, **Iniciar com o Windows** e **Sair**.
 - O **✕** do painel só esconde o widget. Para fechar o app de vez, use **Sair** na bandeja.
 
 ## Configuração
@@ -58,6 +63,8 @@ Na primeira vez que abre, o app mostra a tela **Conectar à conta LG**:
    - Confira o **Created at** do token: ele deve estar no fuso do seu país (Brasil = GMT-3). GMT+9 indica que o site estava na Coreia; apague e gere outro.
 2. Escolha o mesmo país no app, cole o token e clique em **Conectar**.
 3. Se a conta tiver mais de um ar-condicionado, escolha qual controlar.
+
+Na primeira configuração, a caixa **Abrir junto com o Windows** já vem marcada; desmarque se não quiser. Dá para mudar depois em **⚙** ou no menu da bandeja (fica registrado em Configurações do Windows → Aplicativos → Inicialização).
 
 O app testa o token com a LG antes de salvar. Para trocar o token, o país ou o aparelho, ou para desconectar, use **⚙ → Conta LG**.
 
@@ -86,13 +93,13 @@ Para abrir uma dessas pastas, cole o caminho (com o `%…%`) na barra de endere�
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| `LG 1309: Not allowed api call` | Token criado com o país errado no site, ou pelo login social | Gere outro token seguindo a [Configuração](#configuração) e confira o fuso do "Created at" |
-| `LG 1310: Not supported domain` | País no app diferente do país da conta | Em **⚙ → Conta LG → Trocar token**, escolha o país certo |
-| "Nenhum ar-condicionado encontrado nesta conta" | O ar está em outra conta LG | Use o token da conta onde o ar está cadastrado no app ThinQ |
-| `LG 1306` ou bloqueio temporário | Chamadas demais com o mesmo token | Espere algumas horas; o app consulta só a cada 60 s |
+| "A LG recusou o token" (`LG 1309`) | Token criado com o país errado no site, ou pelo login social | Gere outro token seguindo a [Configuração](#configuração) e confira o fuso do "Created at" |
+| "País diferente do da conta" (`LG 1310`) | País no app diferente do país da conta | Em **⚙ → Conta LG → Trocar token**, escolha o país certo |
+| "Nenhum ar-condicionado nesta conta" | O ar está em outra conta LG | Use o token da conta onde o ar está cadastrado no app ThinQ |
+| "A LG pausou o acesso por um tempo" (`LG 1306`) | Chamadas demais com o mesmo token | Espere algumas horas; o app consulta só a cada 60 s |
+| "O ar-condicionado está offline" (`LG 1222`) | O ar perdeu o Wi-Fi ou está fora da tomada | Confira se ele aparece no app LG ThinQ |
 | Valor muda no ar, mas a tela demora a confirmar | A nuvem da LG leva um tempo para refletir o comando | Normal: a tela mantém o valor enviado por até 90 s |
 | Ícone não aparece | Está escondido na setinha **^** da bandeja | Arraste o ícone para a barra |
-| Widget some quando fica em cima da barra de tarefas | A barra de tarefas também é "sempre no topo" e volta para a frente quando é clicada | Deixe o widget logo acima da barra de tarefas (limitação conhecida) |
 
 ## Desenvolvimento
 
@@ -122,7 +129,11 @@ Estrutura:
 | `src-tauri/src/thinq.rs` | Cliente da ThinQ Connect API e leitura do profile |
 | `src-tauri/src/settings.rs` | Token no Gerenciador de Credenciais e `settings.json` |
 | `src-tauri/src/lib.rs` | Comandos do Tauri, bandeja e janela |
+| `src-tauri/src/taskbar.rs` | Mantém o widget na frente da barra de tarefas |
+| `src-tauri/icons/source/` | Ícone do app e da bandeja em SVG (os PNG/ICO saem de `pnpm tauri icon`) |
 | `src/App.tsx` | Barra, painel de controles e configurações |
+| `src/errors.ts` | Tipos de erro do backend, quais ficam até resolver e as ações de cada um |
+| `src/Notice.tsx` | Aviso no estilo InfoBar do Windows |
 | `src/useWindowFit.ts` | Faz a janela acompanhar o tamanho do widget e crescer para dentro da tela perto das bordas |
 | `src/Setup.tsx` | Tela de conexão com a conta LG |
 | `src/i18n.ts` | Textos em PT-BR e inglês |
@@ -138,7 +149,9 @@ pnpm tauri build
 
 O projeto usa [Versionamento Semântico](https://semver.org/lang/pt-BR/) (`MAJOR.MINOR.PATCH`) e registra as mudanças no [CHANGELOG.md](CHANGELOG.md), no formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
-O workflow [`release.yml`](.github/workflows/release.yml) compila o instalador no GitHub Actions e publica uma release sempre que uma tag `v*` é enviada:
+O workflow [`release.yml`](.github/workflows/release.yml) compila o instalador no GitHub Actions e publica uma release sempre que uma tag `v*` é enviada. O texto da release vem da seção da versão no `CHANGELOG.md`.
+
+Para publicar:
 
 1. Mova o que está em **Não lançado** no `CHANGELOG.md` para uma seção com a nova versão e a data.
 2. Atualize a versão em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
@@ -152,3 +165,7 @@ O workflow [`release.yml`](.github/workflows/release.yml) compila o instalador n
 - O app só se comunica com os servidores da LG (`api-*.lgthinq.com`).
 - A `x-api-key` em `thinq.rs` não é segredo: é a chave pública do SDK oficial da LG.
 - O app consulta o estado a cada 60 s, porque a LG bloqueia tokens que fazem chamadas demais.
+
+## Licença
+
+[MIT](LICENSE). Este projeto não é afiliado à LG Electronics; LG e ThinQ são marcas da LG Electronics.

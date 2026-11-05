@@ -1,4 +1,6 @@
 mod settings;
+#[cfg(windows)]
+mod taskbar;
 mod thinq;
 
 use std::path::PathBuf;
@@ -6,9 +8,11 @@ use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
 use serde_json::json;
-use tauri::menu::{Menu, MenuItem};
+use tauri::image::Image;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, State, Wry, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_window_state::StateFlags;
 
 use settings::Source;
@@ -77,13 +81,13 @@ async fn save_setup(
     device_id: Option<String>,
 ) -> Result<Vec<DeviceSummary>, String> {
     if ac.active.read().unwrap().as_ref().is_some_and(|a| a.source == Source::Env) {
-        return Err("O app está usando o .env; edite o arquivo para mudar a configuração.".into());
+        return Err("env_locked".into());
     }
     let token = token
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
         .or_else(settings::saved_token)
-        .ok_or("Informe o token")?;
+        .ok_or("token_required")?;
     let config = Config {
         token,
         country: country.trim().to_uppercase(),
@@ -96,11 +100,11 @@ async fn save_setup(
 
     let devices = ThinqClient::new(config.clone()).devices().await?;
     if !devices.iter().any(|d| d.device_type == AIR_CONDITIONER) {
-        return Err("Nenhum ar-condicionado encontrado nesta conta".into());
+        return Err("no_ac".into());
     }
     if let Some(id) = &config.device_id {
         if !devices.iter().any(|d| &d.id == id) {
-            return Err("Aparelho não encontrado na conta".into());
+            return Err(format!("device_missing|{id}"));
         }
     }
 
@@ -136,7 +140,7 @@ async fn set_power(ac: State<'_, Ac>, on: bool) -> Result<(), String> {
 async fn set_mode(ac: State<'_, Ac>, mode: String) -> Result<(), String> {
     let client = ac.client()?;
     if !client.device().await?.capabilities.supports_mode(&mode) {
-        return Err(format!("Modo não suportado: {mode}"));
+        return Err(format!("unsupported|{mode}"));
     }
     client.control(json!({ "airConJobMode": { "currentJobMode": mode } })).await
 }
@@ -153,7 +157,7 @@ async fn set_target_temperature(ac: State<'_, Ac>, value: f64, mode: String) -> 
 async fn set_wind_strength(ac: State<'_, Ac>, strength: String) -> Result<(), String> {
     let client = ac.client()?;
     if !client.device().await?.capabilities.supports_wind(&strength) {
-        return Err(format!("Velocidade não suportada: {strength}"));
+        return Err(format!("unsupported|{strength}"));
     }
     client.control(json!({ "airFlow": { "windStrength": strength } })).await
 }
@@ -176,9 +180,45 @@ async fn set_timer(ac: State<'_, Ac>, kind: String, minutes: u32) -> Result<(), 
         "start" => timer_body("timer", "Start", minutes),
         "stop" => timer_body("timer", "Stop", minutes),
         "sleep" => timer_body("sleepTimer", "Stop", minutes),
-        _ => return Err(format!("Timer inválido: {kind}")),
+        _ => return Err(format!("unsupported|{kind}")),
     };
     ac.client()?.control(body).await
+}
+
+/// Item "Iniciar com o Windows" do menu da bandeja, para manter a marca em dia.
+struct AutostartItem(CheckMenuItem<Wry>);
+
+#[tauri::command]
+fn get_autostart(app: AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_autostart(app: AppHandle, on: bool) -> Result<(), String> {
+    let launcher = app.autolaunch();
+    let result = if on { launcher.enable() } else { launcher.disable() };
+    result.map_err(|e| format!("autostart|{e}"))?;
+    if let Some(item) = app.try_state::<AutostartItem>() {
+        let _ = item.0.set_checked(on);
+    }
+    Ok(())
+}
+
+/// Troca o ícone da bandeja conforme o estado do ar: o pontinho muda de cor.
+#[tauri::command]
+fn set_tray_state(app: AppHandle, state: String, tooltip: String) -> Result<(), String> {
+    let bytes: &[u8] = match state.as_str() {
+        "cooling" => include_bytes!("../icons/tray/cooling.png"),
+        "idle" => include_bytes!("../icons/tray/idle.png"),
+        "off" => include_bytes!("../icons/tray/off.png"),
+        "error" => include_bytes!("../icons/tray/error.png"),
+        _ => return Ok(()),
+    };
+    let tray = app.tray_by_id("main").ok_or("tray")?;
+    let icon = Image::from_bytes(bytes).map_err(|e| e.to_string())?;
+    tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
+    tray.set_tooltip(Some(tooltip)).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn toggle_window(app: &AppHandle) {
@@ -208,8 +248,18 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
     let show = MenuItem::with_id(app, "show", label("Mostrar / ocultar", "Show / hide"), true, None::<&str>)?;
     let power = MenuItem::with_id(app, "power", label("Ligar / desligar o ar", "Turn AC on / off"), true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        label("Iniciar com o Windows", "Start with Windows"),
+        true,
+        app.autolaunch().is_enabled().unwrap_or(false),
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", label("Sair", "Quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &power, &quit])?;
+    let separator = || tauri::menu::PredefinedMenuItem::separator(app);
+    let menu = Menu::with_items(app, &[&show, &power, &separator()?, &autostart, &separator()?, &quit])?;
+    app.manage(AutostartItem(autostart));
 
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("ícone padrão"))
@@ -220,6 +270,12 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             "show" => toggle_window(app),
             "power" => {
                 tauri::async_runtime::spawn(toggle_power(app.clone()));
+            }
+            "autostart" => {
+                // O item já trocou a marca sozinho; aplica e avisa a janela.
+                let on = app.state::<AutostartItem>().0.is_checked().unwrap_or(false);
+                let _ = set_autostart(app.clone(), on);
+                let _ = app.emit("autostart-changed", on);
             }
             "quit" => app.exit(0),
             _ => {}
@@ -236,7 +292,15 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Precisa ser o primeiro plugin: abrir o app de novo só mostra o widget que já existe.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(StateFlags::POSITION)
@@ -265,6 +329,10 @@ pub fn run() {
             app.manage(ac);
 
             setup_tray(app.handle())?;
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                taskbar::keep_above(&window);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -286,7 +354,10 @@ pub fn run() {
             set_wind_strength,
             set_swing,
             set_display_light,
-            set_timer
+            set_timer,
+            get_autostart,
+            set_autostart,
+            set_tray_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

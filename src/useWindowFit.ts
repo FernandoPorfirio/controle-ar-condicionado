@@ -23,7 +23,10 @@ function anchorOf(pos: Point, size: Size, dir: Direction): Point {
   return { x: dir.left ? pos.x + size.width : pos.x, y: dir.up ? pos.y + size.height : pos.y };
 }
 
-/** Mantém a janela dentro da área útil do monitor, com uma margem. */
+/**
+ * Mantém a janela dentro do monitor, com uma margem. Usa a tela inteira, e não a
+ * área útil, para o widget poder ficar em cima da barra de tarefas.
+ */
 function clamp(pos: Point, size: Size, area: Rect | null): Point {
   if (!area) return pos;
   return {
@@ -49,7 +52,10 @@ export function useWindowFit(ref: RefObject<HTMLElement | null>, active: boolean
   const pos = useRef<Point | null>(null);
   const size = useRef<Size>({ width: 0, height: 0 });
   const anchor = useRef<Point | null>(null);
+  // Área útil (sem a barra de tarefas): decide para onde crescer.
   const area = useRef<Rect | null>(null);
+  // Tela inteira do monitor: limite para a janela não sair da tela.
+  const screen = useRef<Rect | null>(null);
   // Posições definidas pelo app há pouco, para não confundir com um arraste do usuário.
   // O evento de movimento chega atrasado, às vezes depois de o app já ter mudado de novo.
   const ownMoves = useRef<(Point & { at: number })[]>([]);
@@ -66,12 +72,14 @@ export function useWindowFit(ref: RefObject<HTMLElement | null>, active: boolean
       if (!monitor) return;
       const scale = monitor.scaleFactor;
       const wa = monitor.workArea ?? { position: monitor.position, size: monitor.size };
-      area.current = {
-        x: wa.position.x / scale,
-        y: wa.position.y / scale,
-        width: wa.size.width / scale,
-        height: wa.size.height / scale,
-      };
+      const toRect = (r: { position: Point; size: Size }): Rect => ({
+        x: r.position.x / scale,
+        y: r.position.y / scale,
+        width: r.size.width / scale,
+        height: r.size.height / scale,
+      });
+      area.current = toRect(wa);
+      screen.current = toRect({ position: monitor.position, size: monitor.size });
     };
 
     const fit = async () => {
@@ -85,7 +93,7 @@ export function useWindowFit(ref: RefObject<HTMLElement | null>, active: boolean
         return;
       }
       const d = dirRef.current;
-      const target = clamp({ x: d.left ? a.x - width : a.x, y: d.up ? a.y - height : a.y }, size.current, area.current);
+      const target = clamp({ x: d.left ? a.x - width : a.x, y: d.up ? a.y - height : a.y }, size.current, screen.current);
       const now = Date.now();
       ownMoves.current = [...ownMoves.current.filter((m) => now - m.at < OWN_MOVE_MS), { ...target, at: now }];
       pos.current = target;

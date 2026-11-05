@@ -10,6 +10,7 @@
   --idle: #34c759;
   --off: #9aa0a6;
   --danger: #e5484d;
+  --warn: #c27c0e;
   color-scheme: light;
 }
 
@@ -25,6 +26,7 @@
     --idle: #4cd964;
     --off: #6b7075;
     --danger: #ff6b6f;
+    --warn: #f5c451;
     color-scheme: dark;
   }
 }
@@ -40,6 +42,7 @@
   --idle: #4cd964;
   --off: #6b7075;
   --danger: #ff6b6f;
+  --warn: #f5c451;
   color-scheme: dark;
 }
 
@@ -524,4 +527,119 @@ p {
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
+}
+
+/* ---- Avisos (estilo InfoBar do Windows) ---- */
+.notice {
+  --tone: var(--accent);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tone) 14%, var(--bg));
+}
+
+.notice.is-error {
+  --tone: var(--danger);
+}
+
+.notice.is-warning {
+  --tone: var(--warn);
+}
+
+.notice.is-success {
+  --tone: var(--idle);
+}
+
+.notice-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--tone);
+  color: var(--bg);
+}
+
+.notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notice-body strong {
+  font-weight: 600;
+}
+
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.notice-actions button.primary {
+  padding: 4px 8px;
+}
+
+.notice-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.notice-foot code {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.notice-close {
+  border: none;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Comando recusado: aviso curto colado na barra */
+.bar-notice {
+  width: 260px;
+  padding: 0 6px 6px;
+}
+
+.widget.up .bar-notice {
+  padding: 6px 6px 0;
+}
+
+.bar-notice .notice {
+  padding: 6px 8px;
+}
+
+/* Sem conexão: os números são a última leitura */
+.stale {
+  color: var(--muted);
+}
+
+
+
+
+
+
+
+button.small {
+  padding: 3px 8px;
 }

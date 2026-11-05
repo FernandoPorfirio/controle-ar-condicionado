@@ -147,7 +147,10 @@ impl ThinqClient {
             "kic"
         };
         Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .build()
+                .unwrap_or_default(),
             base_url: format!("https://api-{region}.lgthinq.com"),
             config,
             device: Mutex::new(None),
@@ -168,13 +171,27 @@ impl ThinqClient {
         if let Some(body) = body {
             req = req.header("x-conditional-control", "true").json(&body);
         }
-        let resp = req.send().await.map_err(|e| format!("Sem conexão com a LG: {e}"))?;
+        // Erros vão como "tipo|detalhe": a interface traduz o tipo e mostra o detalhe em letra pequena.
+        let resp = req.send().await.map_err(|e| {
+            let kind = if e.is_timeout() { "lg_down" } else { "offline" };
+            format!("{kind}|{e}")
+        })?;
         let status = resp.status();
         let payload: Value = resp.json().await.unwrap_or(Value::Null);
         if !status.is_success() {
             let code = payload["error"]["code"].as_str().unwrap_or("?");
-            let message = payload["error"]["message"].as_str().unwrap_or("erro desconhecido");
-            return Err(format!("LG {code}: {message}"));
+            let message = payload["error"]["message"].as_str().unwrap_or("unknown error");
+            let kind = match code {
+                "1222" => "device_offline",
+                "1306" => "rate_limited",
+                "1308" => "no_control",
+                "1309" => "token_country",
+                "1310" => "country_mismatch",
+                _ if status == reqwest::StatusCode::UNAUTHORIZED => "token_invalid",
+                _ if status.is_server_error() => "lg_down",
+                _ => "lg",
+            };
+            return Err(format!("{kind}|LG {code} ({}): {message}", status.as_u16()));
         }
         Ok(payload["response"].clone())
     }
@@ -221,8 +238,8 @@ impl ThinqClient {
             .flatten()
             .find(|d| self.is_selected(d))
             .ok_or(match &self.config.device_id {
-                Some(id) => format!("THINQ_DEVICE_ID {id} não encontrado na conta"),
-                None => "Nenhum ar-condicionado encontrado na conta".to_string(),
+                Some(id) => format!("device_missing|{id}"),
+                None => "no_ac".to_string(),
             })?;
         let id = found["deviceId"].as_str().unwrap_or_default().to_string();
         let profile = self.request(reqwest::Method::GET, &format!("/devices/{id}/profile"), None).await?;
@@ -313,7 +330,7 @@ impl Capabilities {
             .find(|(_, m)| m.is_none_or(|m| m == mode))
             .or(self.target_fields.first())
             .map(|(f, _)| *f)
-            .ok_or("Este modelo não permite mudar a temperatura")?;
+            .ok_or("unsupported|temperature")?;
         let value = value.clamp(self.min_temperature, self.max_temperature);
         Ok(json!({ "temperature": { field: value } }))
     }

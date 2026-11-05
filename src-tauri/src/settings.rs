@@ -30,7 +30,7 @@ pub enum Source {
 }
 
 fn keyring_entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| format!("Gerenciador de Credenciais: {e}"))
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| format!("credentials|{e}"))
 }
 
 pub fn read_saved(config_dir: &Path) -> Option<Saved> {
@@ -64,7 +64,7 @@ pub fn saved_token() -> Option<String> {
 pub fn save(config_dir: &Path, config: &Config) -> Result<(), String> {
     keyring_entry()?
         .set_password(&config.token)
-        .map_err(|e| format!("Não foi possível salvar o token: {e}"))?;
+        .map_err(|e| format!("credentials|{e}"))?;
     let saved = Saved {
         country: config.country.clone(),
         client_id: config.client_id.clone(),
