@@ -6,6 +6,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.5.0] - 2026-11-05
+
 ### Adicionado
 
 - Licença MIT.
@@ -78,7 +80,8 @@ Não publicada em Releases (ficou como rascunho).
 - Workflow do GitHub Actions que gera o instalador do Windows a cada tag `v*`.
 - Script `scripts/thinq_probe.py` para diagnosticar o token e o aparelho.
 
-[Não lançado]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.4.0...HEAD
+[Não lançado]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.1.0...v0.2.0
