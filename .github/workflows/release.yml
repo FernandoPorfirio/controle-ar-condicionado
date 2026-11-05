@@ -1,4 +1,5 @@
-# Compila o instalador do Windows e cria um rascunho em Releases a cada tag v*.
+# Compila o instalador do Windows e publica uma release a cada tag v*.
+# O instalador também fica como artefato da execução, caso a release falhe.
 name: Release
 
 on:
@@ -39,7 +40,15 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: Ar-condicionado ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseBody: |
-            Instalador para Windows: baixe o arquivo `…-setup.exe` abaixo.
-            Configuração do token: veja o README.
-          releaseDraft: true
+            **Instalar:** baixe o `Ar-condicionado_…_x64-setup.exe` em *Assets*, logo abaixo, e rode.
+            O Windows pode avisar "O Windows protegeu o computador": clique em **Mais informações → Executar assim mesmo**.
+
+            Na primeira vez, o app pede o token da sua conta LG. O passo a passo está no [README](https://github.com/${{ github.repository }}#configuração).
+          releaseDraft: false
           prerelease: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error

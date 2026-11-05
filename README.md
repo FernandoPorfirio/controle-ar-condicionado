@@ -117,12 +117,12 @@ pnpm tauri build
 
 ### Publicar uma versão
 
-O workflow [`release.yml`](.github/workflows/release.yml) compila o instalador no GitHub Actions e cria um rascunho em Releases sempre que uma tag `v*` é enviada:
+O workflow [`release.yml`](.github/workflows/release.yml) compila o instalador no GitHub Actions e publica uma release sempre que uma tag `v*` é enviada:
 
 1. Atualize a versão em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
 2. Faça o commit e o push.
 3. Crie e envie a tag: `git tag v0.3.0 && git push origin v0.3.0`.
-4. Quando o workflow terminar, revise o rascunho em Releases e publique.
+4. Em uns 15 minutos a release aparece publicada em Releases, com o instalador em *Assets*. O `.exe` também fica como artefato na execução do workflow (aba Actions).
 
 ## Segurança
 
