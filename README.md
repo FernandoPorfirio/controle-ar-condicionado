@@ -36,8 +36,9 @@ O widget é uma barra de uns 100 × 30 px: o ponto de status e **ambiente → al
 
 - **Em repouso** ele fica semitransparente. A cor do ponto indica o estado: azul piscando = gelando ou aquecendo, verde = na temperatura ou só ventilando, cinza = desligado, vermelho = erro. Passe o mouse sobre o ponto para ver o status e a hora da última atualização.
 - **Com o mouse em cima** aparecem **−** e **+** (temperatura), o botão redondo de **liga/desliga** e uma **seta**.
-- **A seta** abre o painel com modo, vento, oscilação, timer, atualizar, ⚙ configurações e ocultar. Ele fecha sozinho alguns segundos depois que o mouse sai. Perto da borda de baixo da tela, o painel abre para cima.
-- **Arraste** pela barra (ponto ou temperaturas) para mudar de lugar. O widget lembra a posição.
+- **A seta** abre o painel com modo, vento, oscilação, timer, atualizar, ⚙ configurações e ocultar. Ele fecha sozinho alguns segundos depois que o mouse sai.
+- **Perto das bordas** o widget cresce para dentro da tela: para a esquerda perto da borda direita e para cima perto da borda de baixo. A barra não sai do lugar.
+- **Arraste** pela barra (o pontilhado ⋮⋮, o ponto ou as temperaturas) para mudar de lugar. Se ficar parte fora da tela, ele volta para dentro ao soltar. O widget lembra a posição.
 - Em **⚙** ficam idioma, tema, opacidade em repouso, luz do display do ar e a conta LG.
 
 O app também tem um ícone na bandeja do sistema, perto do relógio (às vezes escondido na setinha **^**):
@@ -122,7 +123,7 @@ Estrutura:
 | `src-tauri/src/settings.rs` | Token no Gerenciador de Credenciais e `settings.json` |
 | `src-tauri/src/lib.rs` | Comandos do Tauri, bandeja e janela |
 | `src/App.tsx` | Barra, painel de controles e configurações |
-| `src/useWindowFit.ts` | Faz a janela acompanhar o tamanho do widget e abrir para cima |
+| `src/useWindowFit.ts` | Faz a janela acompanhar o tamanho do widget e crescer para dentro da tela perto das bordas |
 | `src/Setup.tsx` | Tela de conexão com a conta LG |
 | `src/i18n.ts` | Textos em PT-BR e inglês |
 | `scripts/thinq_probe.py` | Diagnóstico da API |

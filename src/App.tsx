@@ -107,7 +107,7 @@ export default function App() {
   const closeTimer = useRef<number | undefined>(undefined);
   const pending = useRef<Pending>(new Map());
   const widget = useRef<HTMLDivElement>(null);
-  const up = useWindowFit(widget, panel !== null);
+  const dir = useWindowFit(widget, hover || panel !== null);
 
   const markPending = (patch: Partial<AcStatus>) => {
     for (const [key, value] of Object.entries(patch))
@@ -447,13 +447,14 @@ export default function App() {
   return (
     <div
       ref={widget}
-      className={`widget${hover ? " hover" : ""}${panel ? " open" : ""}${up ? " up" : ""}`}
+      className={`widget${hover ? " hover" : ""}${panel ? " open" : ""}${dir.up ? " up" : ""}${dir.left ? " left" : ""}`}
       data-state={error ? "error" : key}
       data-power={status?.power ? "on" : "off"}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
       <div className="bar" data-tauri-drag-region>
+        <span className="grip start" data-tauri-drag-region title={t("actions.drag")} />
         <i className="dot" title={error ?? `${statusText}${updatedText ? ` · ${updatedText}` : ""}`} />
         {configured && status ? (
           <>
@@ -503,6 +504,7 @@ export default function App() {
             {configured ? t("status.loading") : t("setup.title")}
           </span>
         )}
+        <span className="grip end" data-tauri-drag-region title={t("actions.drag")} />
       </div>
 
       {panel && (

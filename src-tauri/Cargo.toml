@@ -1,6 +1,6 @@
 [package]
 name = "ar-condicionado"
-version = "0.3.0"
+version = "0.4.0"
 description = "Controle do ar-condicionado LG ThinQ pela bandeja do Windows"
 authors = ["Fernando L. Porfirio"]
 edition = "2024"

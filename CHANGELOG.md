@@ -6,6 +6,17 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.4.0] - 2026-11-05
+
+### Alterado
+
+- Perto das bordas da tela, o widget cresce para dentro: para a esquerda quando o painel não cabe à direita e para cima quando não cabe embaixo. A barra fica parada; se não couber de nenhum jeito, o widget é empurrado para dentro da tela e volta ao lugar ao fechar.
+- Ao soltar o widget com parte dele fora da tela, ele volta para dentro da área útil.
+
+### Adicionado
+
+- Pontilhado de arrastar na barra, que aparece com o mouse em cima, no lado que fica parado.
+
 ## [0.3.0] - 2026-11-05
 
 ### Alterado
@@ -51,7 +62,8 @@ Não publicada em Releases (ficou como rascunho).
 - Workflow do GitHub Actions que gera o instalador do Windows a cada tag `v*`.
 - Script `scripts/thinq_probe.py` para diagnosticar o token e o aparelho.
 
-[Não lançado]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.3.0...HEAD
+[Não lançado]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FernandoPorfirio/controle-ar-condicionado/tree/v0.1.0

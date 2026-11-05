@@ -87,6 +87,7 @@ const ptBR = {
     more: "Mais controles",
     colder: "Diminuir temperatura",
     warmer: "Aumentar temperatura",
+    drag: "Arraste para mover",
   },
   updated: "Atualizado {{time}}",
 };
@@ -177,6 +178,7 @@ const en: typeof ptBR = {
     more: "More controls",
     colder: "Lower temperature",
     warmer: "Raise temperature",
+    drag: "Drag to move",
   },
   updated: "Updated {{time}}",
 };

@@ -179,6 +179,36 @@ body {
   flex: 1;
 }
 
+/* Crescendo para a esquerda: o conteúdo fica encostado no lado direito, que não se mexe */
+.widget.left .bar {
+  justify-content: flex-end;
+}
+
+.widget.left.open .bar .reveal:last-of-type {
+  flex: none;
+}
+
+.widget.left.open .bar .more {
+  margin-left: 0;
+}
+
+/* Pontilhado de arrastar: aparece com o mouse em cima, no lado da barra que fica parado */
+.grip {
+  display: none;
+  width: 8px;
+  height: 16px;
+  flex: none;
+  cursor: grab;
+  background-image: radial-gradient(var(--muted) 1.1px, transparent 1.3px);
+  background-size: 4px 4px;
+  opacity: 0.75;
+}
+
+.widget:is(.hover, .open):not(.left) .grip.start,
+.widget:is(.hover, .open).left .grip.end {
+  display: block;
+}
+
 /* ---- Botões ---- */
 button {
   font: inherit;
