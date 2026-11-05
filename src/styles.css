@@ -46,117 +46,53 @@
 * {
   box-sizing: border-box;
 }
-
+/* A janela é transparente e acompanha o tamanho do widget (useWindowFit). */
 html,
 body {
   margin: 0;
-  height: 100%;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
-  font: 13px/1.4 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font: 12px/1.35 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   user-select: none;
   overflow: hidden;
 }
 
-.app {
+#root {
+  display: inline-block;
+}
+
+.widget {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-}
-
-.titlebar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 6px 6px 12px;
-  cursor: grab;
-}
-
-.title {
-  flex: 1;
-  font-weight: 600;
-  white-space: nowrap;
+  width: max-content;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  transition: opacity 0.2s;
 }
 
-button {
-  font: inherit;
-  color: inherit;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 8px;
-  cursor: pointer;
+.widget.up {
+  flex-direction: column-reverse;
 }
 
-button:disabled,
-select:disabled,
-input:disabled {
-  opacity: 0.45;
-  cursor: default;
+.widget:not(.hover):not(.open) {
+  opacity: var(--idle-opacity, 0.55);
 }
 
-button.icon {
-  border: none;
-  background: transparent;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--muted);
-}
-
-button.icon:hover:not(:disabled) {
-  background: var(--border);
-  color: var(--text);
-}
-
-button.secondary {
-  background: transparent;
-}
-
-select {
-  font: inherit;
-  color: inherit;
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 8px;
-}
-
-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 12px;
-  overflow-y: auto;
-}
-
-h2,
-h3 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.hero {
-  background: var(--surface);
-  border: 1px solid var(--border);
+.widget.open {
+  width: 300px;
   border-radius: 12px;
-  padding: 12px;
 }
 
-.state {
+/* ---- Barra ---- */
+.bar {
+  height: 28px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  padding: 0 6px 0 10px;
+  cursor: grab;
 }
 
 .dot {
@@ -164,16 +100,19 @@ h3 {
   height: 8px;
   border-radius: 50%;
   background: var(--off);
+  flex: none;
 }
 
-[data-state="cooling"] .dot {
+[data-state="cooling"] .dot,
+[data-state="heating"] .dot {
   background: var(--cool);
   animation: pulse 1.6s ease-in-out infinite;
 }
 
 [data-state="reached"] .dot,
 [data-state="fan"] .dot,
-[data-state="drying"] .dot {
+[data-state="drying"] .dot,
+[data-state="auto"] .dot {
   background: var(--idle);
 }
 
@@ -187,51 +126,226 @@ h3 {
   }
 }
 
-.temps {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    animation: none !important;
+  }
+  .widget {
+    transition: none;
+  }
 }
 
-.label {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.big {
-  font-size: 28px;
-  font-weight: 300;
+.num {
   font-variant-numeric: tabular-nums;
+}
+
+.room {
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.target {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .arrow {
   color: var(--muted);
-  padding-bottom: 8px;
 }
 
-.target {
-  display: flex;
+.bar-text {
+  color: var(--muted);
+  padding-right: 6px;
+  white-space: nowrap;
+}
+
+/* − + liga/desliga e seta aparecem com o mouse em cima ou com o painel aberto */
+.reveal {
+  display: none;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 
-.target button {
-  width: 28px;
-  height: 28px;
+.widget.hover .reveal,
+.widget.open .reveal {
+  display: inline-flex;
+}
+
+.widget.open .bar .more {
+  margin-left: auto;
+}
+
+.widget.open .bar .reveal:last-of-type {
+  flex: 1;
+}
+
+/* ---- Botões ---- */
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.icon-svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+button.icon,
+button.step {
+  border: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--muted);
+}
+
+button.step {
+  border-radius: 50%;
+  font-size: 14px;
+}
+
+button.icon:hover:not(:disabled),
+button.step:hover:not(:disabled) {
+  color: var(--text);
+}
+
+button.power {
+  width: 22px;
+  height: 22px;
   padding: 0;
   border-radius: 50%;
+  color: var(--muted);
 }
 
-.power {
-  padding: 10px;
-  font-weight: 600;
-}
-
-.power.on {
+[data-power="on"] button.power {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-text);
+}
+
+.more .icon-svg {
+  transition: transform 0.2s;
+}
+
+.widget.open .more .icon-svg {
+  transform: rotate(180deg);
+}
+
+.widget.up.open .more .icon-svg {
+  transform: rotate(0deg);
+}
+
+.widget.up:not(.open) .more .icon-svg {
+  transform: rotate(180deg);
+}
+
+button.secondary {
+  background: transparent;
+}
+
+button.text {
+  border: none;
+  padding: 0 2px;
+  color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  padding: 7px;
+}
+
+button.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+select,
+input[type="password"],
+input[type="text"] {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+input[type="password"],
+input[type="text"] {
+  user-select: text;
+}
+
+/* ---- Painel ---- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.widget.up .panel {
+  border-top: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label,
+h2,
+h3 {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 .segmented {
@@ -241,7 +355,7 @@ h3 {
 
 .segmented button {
   flex: 1;
-  padding: 6px 2px;
+  padding: 4px 2px;
 }
 
 .segmented button.active {
@@ -255,7 +369,60 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 8px;
+}
+
+.row select {
+  width: auto;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.timer-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+footer > span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grow {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+p {
+  margin: 0;
+}
+
+/* ---- Configurações e conexão ---- */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .settings label {
@@ -264,33 +431,14 @@ h3 {
   gap: 4px;
 }
 
-.settings label.row {
+.settings label.toggle {
   flex-direction: row;
 }
 
-.muted {
-  color: var(--muted);
-}
-
-footer {
-  padding: 8px 12px;
-  font-size: 11px;
-  min-height: 30px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.error {
-  color: var(--danger);
-}
-
-.segmented {
-  flex-wrap: wrap;
-}
-
-.segmented button {
-  min-width: calc(25% - 3px);
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .devices {
@@ -323,34 +471,6 @@ footer {
   word-break: break-all;
 }
 
-input[type="password"],
-input[type="text"] {
-  font: inherit;
-  color: inherit;
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 8px;
-  user-select: text;
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
-  font-weight: 600;
-  padding: 8px;
-}
-
-button.link {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent);
-  text-decoration: underline;
-}
-
 .steps {
   margin: 0;
   padding-left: 18px;
@@ -374,8 +494,4 @@ button.link {
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
-}
-
-.settings .error {
-  margin: 0;
 }

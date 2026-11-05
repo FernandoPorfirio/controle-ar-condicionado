@@ -52,6 +52,7 @@ const ptBR = {
     themeLight: "Claro",
     themeDark: "Escuro",
     displayLight: "Luz do display do ar",
+    idleOpacity: "Opacidade sem o mouse em cima",
     devices: "Aparelhos na conta",
     devicesHint: "Para controlar outro ar, coloque o ID dele em THINQ_DEVICE_ID no .env e reinicie o app.",
     inUse: "em uso",
@@ -79,7 +80,14 @@ const ptBR = {
     disconnect: "Desconectar",
     fromEnv: "Configurado pelo arquivo .env. Edite o arquivo para mudar.",
   },
-  actions: { hide: "Ocultar", settings: "Configurações", refresh: "Atualizar" },
+  actions: {
+    hide: "Ocultar",
+    settings: "Configurações",
+    refresh: "Atualizar",
+    more: "Mais controles",
+    colder: "Diminuir temperatura",
+    warmer: "Aumentar temperatura",
+  },
   updated: "Atualizado {{time}}",
 };
 
@@ -134,6 +142,7 @@ const en: typeof ptBR = {
     themeLight: "Light",
     themeDark: "Dark",
     displayLight: "AC display light",
+    idleOpacity: "Opacity when not hovered",
     devices: "Devices on the account",
     devicesHint: "To control another AC, put its ID in THINQ_DEVICE_ID in .env and restart the app.",
     inUse: "in use",
@@ -161,7 +170,14 @@ const en: typeof ptBR = {
     disconnect: "Disconnect",
     fromEnv: "Configured by the .env file. Edit the file to change it.",
   },
-  actions: { hide: "Hide", settings: "Settings", refresh: "Refresh" },
+  actions: {
+    hide: "Hide",
+    settings: "Settings",
+    refresh: "Refresh",
+    more: "More controls",
+    colder: "Lower temperature",
+    warmer: "Raise temperature",
+  },
   updated: "Updated {{time}}",
 };
 

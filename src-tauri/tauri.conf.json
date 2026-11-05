@@ -14,14 +14,15 @@
       {
         "label": "main",
         "title": "Ar-condicionado",
-        "width": 300,
-        "height": 470,
+        "width": 160,
+        "height": 30,
         "resizable": false,
         "maximizable": false,
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "shadow": true
+        "shadow": false,
+        "transparent": true
       }
     ],
     "security": {
